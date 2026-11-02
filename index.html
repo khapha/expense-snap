@@ -80,7 +80,8 @@ const CATEGORIES = ['🍜 Ăn uống','☕ Cà phê','🛵 Đi lại','🛍️ M
 const $ = id => document.getElementById(id);
 const video = $('video'), canvas = $('shot');
 let facing = 'environment', stream, captured = false, category = CATEGORIES[0];
-let scriptUrl = localStorage.getItem('scriptUrl') || '';
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz3kB0XvPyysVC4CElHCGFcwjq_HnjvYui-hMqU8YH3qAHz_YDbvsokvEjCVoA4IHv-/exec';
+let scriptUrl = localStorage.getItem('scriptUrl') || DEFAULT_SCRIPT_URL;
 let history = JSON.parse(localStorage.getItem('history') || '[]');
 
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
