@@ -5,156 +5,567 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chi Tiêu">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
 <title>Snap Chi Tiêu</title>
 <style>
-  :root { --accent:#ffc800; --bg:#000; --card:#1c1c1e; --text:#fff; --muted:#8e8e93; }
+  :root { --accent:#ffc800; --bg:#000; --card:#1c1c1e; --card2:#2c2c2e; --text:#fff; --muted:#8e8e93; --red:#ff453a; --green:#30d158; }
   * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-  body { background:var(--bg); color:var(--text); font-family:-apple-system,system-ui,sans-serif; min-height:100dvh; display:flex; flex-direction:column; align-items:center; padding:16px; padding-top:max(16px,env(safe-area-inset-top)); }
-  header { width:100%; max-width:420px; display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+  html, body { background:var(--bg); color:var(--text); font-family:-apple-system,system-ui,sans-serif; }
+  body { min-height:100dvh; padding:16px; padding-top:max(16px,env(safe-area-inset-top)); padding-bottom:calc(84px + env(safe-area-inset-bottom)); }
+  .wrap { max-width:420px; margin:0 auto; }
+  header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; gap:8px; }
   header h1 { font-size:20px; }
-  .total { background:var(--card); padding:6px 12px; border-radius:20px; font-size:14px; }
-  .frame { position:relative; width:100%; max-width:420px; aspect-ratio:1; border-radius:40px; overflow:hidden; background:var(--card); }
-  video, canvas#shot { width:100%; height:100%; object-fit:cover; display:block; }
-  canvas#shot { display:none; }
-  .overlay { position:absolute; left:0; right:0; bottom:20px; display:flex; justify-content:center; }
-  .amount-input { background:rgba(0,0,0,.55); backdrop-filter:blur(10px); border:none; color:#fff; font-size:22px; font-weight:700; text-align:center; padding:10px 18px; border-radius:24px; width:70%; outline:none; }
-  .controls { display:flex; align-items:center; justify-content:space-around; width:100%; max-width:420px; margin:28px 0 16px; }
+  .pill { background:var(--card); padding:6px 12px; border-radius:20px; font-size:13px; white-space:nowrap; }
+  .pill.warn { color:var(--accent); }
+  .hidden { display:none !important; }
+  button { font-family:inherit; color:inherit; }
+
+  /* Camera */
+  .frame { position:relative; width:100%; aspect-ratio:1; border-radius:40px; overflow:hidden; background:var(--card); }
+  video, #shot { width:100%; height:100%; object-fit:cover; display:block; }
+  #shot { display:none; }
+  .overlay { position:absolute; left:0; right:0; bottom:18px; display:flex; justify-content:center; }
+  .amount-input { background:rgba(0,0,0,.55); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:none; color:#fff; font-size:24px; font-weight:700; text-align:center; padding:10px 18px; border-radius:24px; width:72%; outline:none; }
+  .frame-tools { position:absolute; top:14px; left:14px; right:14px; display:flex; justify-content:space-between; }
+  .glass { background:rgba(0,0,0,.5); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:none; color:#fff; padding:8px 12px; border-radius:18px; font-size:13px; font-weight:600; cursor:pointer; }
+  .glass.on { background:var(--accent); color:#000; }
+  .controls { display:flex; align-items:center; justify-content:space-around; margin:22px 0 14px; }
   .shutter { width:84px; height:84px; border-radius:50%; border:5px solid var(--accent); background:transparent; padding:5px; cursor:pointer; }
   .shutter span { display:block; width:100%; height:100%; border-radius:50%; background:#fff; transition:transform .1s; }
   .shutter:active span { transform:scale(.9); }
-  .icon-btn { width:48px; height:48px; border-radius:50%; background:var(--card); border:none; color:#fff; font-size:20px; cursor:pointer; }
-  .chips { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; max-width:420px; margin-bottom:12px; }
-  .chip { background:var(--card); border:2px solid transparent; color:#fff; padding:8px 14px; border-radius:20px; font-size:14px; cursor:pointer; }
+  .icon-btn { width:50px; height:50px; border-radius:50%; background:var(--card); border:none; font-size:20px; cursor:pointer; }
+  .icon-btn.rec { background:var(--red); animation:pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity:.6; } }
+  .seg { display:flex; background:var(--card); border-radius:14px; padding:3px; margin-bottom:10px; }
+  .seg button { flex:1; border:none; background:transparent; padding:8px; border-radius:11px; font-size:14px; font-weight:600; cursor:pointer; }
+  .seg button.active { background:var(--card2); }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:10px; }
+  .chip { background:var(--card); border:2px solid transparent; padding:7px 13px; border-radius:20px; font-size:14px; cursor:pointer; }
   .chip.active { border-color:var(--accent); }
-  .note { width:100%; max-width:420px; background:var(--card); border:none; color:#fff; padding:12px 16px; border-radius:16px; font-size:15px; outline:none; }
-  .hidden { display:none !important; }
-  .history { width:100%; max-width:420px; margin-top:24px; display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
-  .history .item { position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background:var(--card); }
-  .history img { width:100%; height:100%; object-fit:cover; }
-  .history .tag { position:absolute; bottom:4px; left:4px; right:4px; font-size:11px; background:rgba(0,0,0,.6); padding:2px 6px; border-radius:8px; text-align:center; }
-  .toast { position:fixed; top:20px; left:50%; transform:translateX(-50%); background:var(--card); padding:10px 18px; border-radius:20px; font-size:14px; opacity:0; transition:opacity .3s; z-index:9; }
+  .field { width:100%; background:var(--card); border:none; color:#fff; padding:12px 16px; border-radius:14px; font-size:15px; outline:none; }
+
+  /* Feed */
+  .feed-day { color:var(--muted); font-size:13px; margin:18px 4px 8px; display:flex; justify-content:space-between; }
+  .card { display:flex; gap:12px; align-items:center; background:var(--card); border-radius:18px; padding:8px; margin-bottom:8px; cursor:pointer; }
+  .card img, .card .noimg { width:64px; height:64px; border-radius:14px; object-fit:cover; background:var(--card2); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:26px; }
+  .card .info { flex:1; min-width:0; }
+  .card .amt { font-weight:700; font-size:17px; }
+  .card .amt.thu { color:var(--green); }
+  .card .sub { color:var(--muted); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card .pending { font-size:11px; color:var(--accent); }
+  .empty { text-align:center; color:var(--muted); padding:40px 0; }
+
+  /* Stats */
+  .month-nav { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .month-nav button { background:var(--card); border:none; width:40px; height:40px; border-radius:50%; font-size:18px; cursor:pointer; }
+  .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+  .kpi { background:var(--card); border-radius:16px; padding:12px; }
+  .kpi .l { color:var(--muted); font-size:12px; }
+  .kpi .v { font-weight:700; font-size:15px; margin-top:4px; }
+  .box { background:var(--card); border-radius:18px; padding:16px; margin-bottom:12px; }
+  .box h3 { font-size:15px; margin-bottom:12px; display:flex; justify-content:space-between; }
+  .box h3 small { color:var(--muted); font-weight:400; }
+  .bar { height:10px; background:var(--card2); border-radius:6px; overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--green); border-radius:6px; }
+  .bar i.warn { background:var(--accent); } .bar i.over { background:var(--red); }
+  .donut-wrap { display:flex; gap:16px; align-items:center; }
+  .legend { flex:1; font-size:13px; display:flex; flex-direction:column; gap:6px; }
+  .legend div { display:flex; align-items:center; gap:6px; }
+  .legend b { margin-left:auto; font-weight:600; }
+  .legend i { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+  .weeks { display:flex; align-items:flex-end; gap:6px; height:120px; }
+  .weeks div { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; font-size:10px; color:var(--muted); gap:4px; }
+  .weeks span { width:100%; background:var(--accent); border-radius:6px 6px 2px 2px; min-height:2px; }
+
+  /* Tab bar */
+  nav { position:fixed; left:0; right:0; bottom:0; background:rgba(28,28,30,.92); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); display:flex; justify-content:center; padding-bottom:env(safe-area-inset-bottom); z-index:5; }
+  nav button { flex:1; max-width:140px; background:none; border:none; padding:10px 0 12px; font-size:11px; color:var(--muted); cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:2px; }
+  nav button b { font-size:22px; }
+  nav button.active { color:var(--accent); }
+
+  /* Sheet / modal */
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.7); display:flex; align-items:flex-end; justify-content:center; z-index:10; }
+  .modal > div { background:var(--card); width:100%; max-width:460px; border-radius:24px 24px 0 0; padding:20px 16px calc(20px + env(safe-area-inset-bottom)); max-height:90dvh; overflow:auto; }
+  .modal h3 { margin-bottom:12px; }
+  .modal label { display:block; color:var(--muted); font-size:13px; margin:12px 0 6px; }
+  .modal .field { background:var(--card2); }
+  .modal .row { display:flex; gap:8px; margin-top:16px; }
+  .btn { flex:1; padding:13px; border-radius:14px; border:none; font-weight:700; font-size:15px; cursor:pointer; background:var(--card2); }
+  .btn.primary { background:var(--accent); color:#000; }
+  .btn.danger { background:var(--red); }
+  .modal .chips { justify-content:flex-start; margin-top:4px; }
+  .modal .chip { background:var(--card2); }
+  .hint { color:var(--muted); font-size:12px; margin-top:6px; line-height:1.4; }
+
+  .toast { position:fixed; top:max(20px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%); background:var(--card2); padding:10px 18px; border-radius:20px; font-size:14px; opacity:0; transition:opacity .3s; z-index:20; pointer-events:none; max-width:90%; text-align:center; }
   .toast.show { opacity:1; }
-  .setup { position:fixed; inset:0; background:rgba(0,0,0,.9); display:flex; align-items:center; justify-content:center; padding:16px; z-index:10; }
-  .setup div { background:var(--card); padding:20px; border-radius:20px; max-width:420px; width:100%; }
-  .setup input { width:100%; margin:12px 0; padding:10px; border-radius:10px; border:none; }
-  .setup button { width:100%; padding:12px; border-radius:12px; border:none; background:var(--accent); font-weight:700; }
 </style>
 </head>
 <body>
-<header>
-  <h1>💸 Snap Chi Tiêu</h1>
-  <div class="total" id="todayTotal">Hôm nay: 0đ</div>
-</header>
+<div class="wrap">
+  <header>
+    <h1 id="title">💸 Snap Chi Tiêu</h1>
+    <div class="pill" id="headerPill">Hôm nay: 0đ</div>
+  </header>
 
-<div class="frame">
-  <video id="video" autoplay playsinline muted></video>
-  <canvas id="shot"></canvas>
-  <div class="overlay hidden" id="amountBox">
-    <input class="amount-input" id="amount" inputmode="numeric" placeholder="Số tiền (đ)">
-  </div>
+  <!-- ===== Camera ===== -->
+  <section id="tab-camera">
+    <div class="frame">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="shot"></canvas>
+      <div class="frame-tools hidden" id="frameTools">
+        <button class="glass" id="ocrBtn">🧾 Đọc bill</button>
+        <button class="glass" id="noPhotoBtn">Không ảnh</button>
+      </div>
+      <div class="overlay hidden" id="amountBox">
+        <input class="amount-input" id="amount" inputmode="numeric" placeholder="Số tiền (đ)">
+      </div>
+    </div>
+    <div class="controls">
+      <button class="icon-btn" id="leftBtn">🔄</button>
+      <button class="shutter" id="shutter"><span></span></button>
+      <button class="icon-btn" id="rightBtn">🎤</button>
+    </div>
+    <div id="form" class="hidden">
+      <div class="seg" id="typeSeg"><button data-t="chi" class="active">Khoản chi</button><button data-t="thu">Khoản thu</button></div>
+      <div class="chips" id="chips"></div>
+      <input class="field" id="note" placeholder="Ghi chú (vd: cà phê với team)">
+    </div>
+  </section>
+
+  <!-- ===== Feed ===== -->
+  <section id="tab-feed" class="hidden">
+    <div id="feed"></div>
+  </section>
+
+  <!-- ===== Stats ===== -->
+  <section id="tab-stats" class="hidden">
+    <div class="month-nav"><button id="prevM">‹</button><b id="monthLabel"></b><button id="nextM">›</button></div>
+    <div class="kpis">
+      <div class="kpi"><div class="l">Chi</div><div class="v" id="kChi"></div></div>
+      <div class="kpi"><div class="l">Thu</div><div class="v" id="kThu" style="color:var(--green)"></div></div>
+      <div class="kpi"><div class="l">Còn lại</div><div class="v" id="kBal"></div></div>
+    </div>
+    <div class="box" id="budgetBox">
+      <h3>Ngân sách tháng <small id="budgetText"></small></h3>
+      <div class="bar"><i id="budgetBar"></i></div>
+      <p class="hint" id="budgetHint"></p>
+    </div>
+    <div class="box">
+      <h3>Theo danh mục <small id="cmpText"></small></h3>
+      <div class="donut-wrap"><svg id="donut" width="130" height="130" viewBox="0 0 42 42"></svg><div class="legend" id="legend"></div></div>
+    </div>
+    <div class="box">
+      <h3>Theo tuần</h3>
+      <div class="weeks" id="weeks"></div>
+    </div>
+  </section>
 </div>
 
-<div class="controls">
-  <button class="icon-btn" id="leftBtn" title="Đổi camera">🔄</button>
-  <button class="shutter" id="shutter"><span></span></button>
-  <button class="icon-btn" id="rightBtn" title="Cài đặt">⚙️</button>
-</div>
+<nav>
+  <button data-tab="camera" class="active"><b>📸</b>Chụp</button>
+  <button data-tab="feed"><b>🖼️</b>Lịch sử</button>
+  <button data-tab="stats"><b>📊</b>Thống kê</button>
+  <button id="settingsBtn"><b>⚙️</b>Cài đặt</button>
+</nav>
 
-<div class="chips hidden" id="chips"></div>
-<input class="note hidden" id="note" placeholder="Ghi chú (vd: cà phê với team)">
+<!-- Settings -->
+<div class="modal hidden" id="settings"><div>
+  <h3>Cài đặt</h3>
+  <label>Tên của bạn (hiện trong lịch sử khi dùng chung)</label>
+  <input class="field" id="sWho" placeholder="vd: Kha">
+  <label>Mã bí mật</label>
+  <input class="field" id="sToken" placeholder="Lấy từ hàm setup trong Apps Script">
+  <label>Ngân sách chi mỗi tháng (đ)</label>
+  <input class="field" id="sBudget" inputmode="numeric" placeholder="vd: 5.000.000">
+  <label>URL Web App</label>
+  <input class="field" id="sUrl" placeholder="https://script.google.com/macros/s/.../exec">
+  <p class="hint">Muốn dùng chung với bạn bè/người yêu: gửi họ link app + mã bí mật. Mọi người cùng ghi vào một Sheet và thấy ảnh của nhau ở tab Lịch sử.</p>
+  <div class="row"><button class="btn" data-close>Huỷ</button><button class="btn primary" id="sSave">Lưu</button></div>
+</div></div>
 
-<div class="history" id="history"></div>
+<!-- Edit -->
+<div class="modal hidden" id="editor"><div>
+  <h3>Sửa giao dịch</h3>
+  <div class="seg" id="eTypeSeg"><button data-t="chi">Khoản chi</button><button data-t="thu">Khoản thu</button></div>
+  <label>Số tiền</label>
+  <input class="field" id="eAmount" inputmode="numeric">
+  <label>Danh mục</label>
+  <div class="chips" id="eChips"></div>
+  <label>Ghi chú</label>
+  <input class="field" id="eNote">
+  <div class="row"><button class="btn danger" id="eDelete">Xoá</button><button class="btn" data-close>Huỷ</button><button class="btn primary" id="eSave">Lưu</button></div>
+</div></div>
+
 <div class="toast" id="toast"></div>
 
-<div class="setup hidden" id="setup">
-  <div>
-    <h3>Kết nối Google Sheet</h3>
-    <p style="color:var(--muted);font-size:13px;margin-top:6px">Dán URL Web App từ Google Apps Script (xem README.md)</p>
-    <input id="urlInput" placeholder="https://script.google.com/macros/s/.../exec">
-    <button id="saveUrl">Lưu</button>
-  </div>
-</div>
-
 <script>
-const CATEGORIES = ['🍜 Ăn uống','☕ Cà phê','🛵 Đi lại','🛍️ Mua sắm','🎮 Giải trí','🏠 Nhà cửa','💊 Sức khỏe','📦 Khác'];
-const $ = id => document.getElementById(id);
-const video = $('video'), canvas = $('shot');
-let facing = 'environment', stream, captured = false, category = CATEGORIES[0];
 const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz3kB0XvPyysVC4CElHCGFcwjq_HnjvYui-hMqU8YH3qAHz_YDbvsokvEjCVoA4IHv-/exec';
-let scriptUrl = localStorage.getItem('scriptUrl') || DEFAULT_SCRIPT_URL;
-let history = JSON.parse(localStorage.getItem('history') || '[]');
+const CATS = {
+  chi: ['🍜 Ăn uống','☕ Cà phê','🛵 Đi lại','🛍️ Mua sắm','🎮 Giải trí','🏠 Nhà cửa','💊 Sức khỏe','📦 Khác'],
+  thu: ['💰 Lương','🎁 Thưởng','💸 Được cho','📈 Đầu tư','📦 Khác']
+};
+// Từ khoá để đoán danh mục khi nói bằng giọng
+const KEYWORDS = {
+  '☕ Cà phê':['cà phê','cafe','cafê','trà sữa','trà','nước'],
+  '🍜 Ăn uống':['ăn','cơm','phở','bún','bánh','lẩu','nhậu','bia'],
+  '🛵 Đi lại':['xăng','grab','taxi','xe','gửi xe','vé'],
+  '🛍️ Mua sắm':['mua','áo','quần','giày','shopee','lazada'],
+  '🎮 Giải trí':['phim','game','karaoke','du lịch'],
+  '🏠 Nhà cửa':['điện','nước nhà','tiền nhà','internet','wifi','gas'],
+  '💊 Sức khỏe':['thuốc','khám','bệnh viện','gym'],
+  '💰 Lương':['lương'], '🎁 Thưởng':['thưởng']
+};
+const COLORS = ['#ffc800','#ff9f0a','#ff453a','#bf5af2','#5e5ce6','#0a84ff','#64d2ff','#30d158','#8e8e93'];
 
-function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
-const fmt = n => Number(n).toLocaleString('vi-VN') + 'đ';
+const $ = id => document.getElementById(id);
+const fmt = n => Number(n || 0).toLocaleString('vi-VN') + 'đ';
+const digits = s => String(s).replace(/\D/g,'');
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { toast('Bộ nhớ máy đầy'); } }
+};
 
-async function startCamera(){
-  stream?.getTracks().forEach(t=>t.stop());
+const cfg = Object.assign({ url: DEFAULT_SCRIPT_URL, token: '', who: '', budget: 0 }, store.get('cfg', {}));
+if (localStorage.getItem('scriptUrl')) cfg.url = localStorage.getItem('scriptUrl');
+let items = store.get('items', []);        // bản sao từ Sheet
+let queue = store.get('queue', []);        // chờ gửi khi offline
+let facing = 'environment', stream, captured = false, hasPhoto = true;
+let type = 'chi', category = CATS.chi[0];
+let statsMonth = new Date(); statsMonth.setDate(1);
+
+function toast(msg, ms = 2400) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), ms); }
+
+async function api(action, payload = {}) {
+  if (!cfg.url) throw new Error('Chưa có URL Web App');
+  // text/plain để tránh CORS preflight với Apps Script
+  const res = await fetch(cfg.url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ action, token: cfg.token, ...payload }) });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error);
+  return data;
+}
+
+/* ===== Camera ===== */
+async function startCamera() {
+  stream?.getTracks().forEach(t => t.stop());
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:facing, width:{ideal:1080}, height:{ideal:1080} }, audio:false });
-    video.srcObject = stream;
-  } catch(e){ toast('Không mở được camera: ' + e.message); }
+    $('video').srcObject = stream;
+  } catch (e) { toast('Không mở được camera — vẫn nhập được không ảnh'); }
 }
 
-function capture(){
-  const s = Math.min(video.videoWidth, video.videoHeight);
-  const size = 720;
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  if (facing === 'user') { ctx.translate(size,0); ctx.scale(-1,1); }
-  ctx.drawImage(video,(video.videoWidth-s)/2,(video.videoHeight-s)/2,s,s,0,0,size,size);
-  ctx.setTransform(1,0,0,1,0,0);
-  setMode(true);
-  $('amount').focus();
+function capture() {
+  const v = $('video'), c = $('shot'), size = 720;
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  if (v.videoWidth) {
+    const s = Math.min(v.videoWidth, v.videoHeight);
+    if (facing === 'user') { ctx.translate(size, 0); ctx.scale(-1, 1); }
+    ctx.drawImage(v, (v.videoWidth - s) / 2, (v.videoHeight - s) / 2, s, s, 0, 0, size, size);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    hasPhoto = true;
+  } else {
+    hasPhoto = false; drawPlaceholder();
+  }
+  setCaptured(true);
 }
 
-function setMode(isCaptured){
-  captured = isCaptured;
-  video.classList.toggle('hidden', isCaptured);
-  canvas.style.display = isCaptured ? 'block' : 'none';
-  ['amountBox','chips','note'].forEach(id => $(id).classList.toggle('hidden', !isCaptured));
-  $('leftBtn').textContent = isCaptured ? '✕' : '🔄';
-  $('rightBtn').textContent = isCaptured ? '➤' : '⚙️';
-  if (!isCaptured) { $('amount').value=''; $('note').value=''; }
+function drawPlaceholder() {
+  const c = $('shot'), ctx = c.getContext('2d');
+  c.width = c.height = 720;
+  ctx.fillStyle = '#1c1c1e'; ctx.fillRect(0, 0, 720, 720);
+  ctx.font = '200px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(category.split(' ')[0], 360, 320);
 }
 
-async function send(){
-  const amount = $('amount').value.replace(/\D/g,'');
+function setCaptured(on) {
+  captured = on;
+  $('video').classList.toggle('hidden', on);
+  $('shot').style.display = on ? 'block' : 'none';
+  ['amountBox','form','frameTools'].forEach(id => $(id).classList.toggle('hidden', !on));
+  $('leftBtn').textContent = on ? '✕' : '🔄';
+  $('rightBtn').textContent = on ? '➤' : '🎤';
+  $('noPhotoBtn').classList.toggle('on', on && !hasPhoto);
+  if (!on) { $('amount').value = ''; $('note').value = ''; }
+}
+
+function setType(t, segId = 'typeSeg') {
+  document.querySelectorAll(`#${segId} button`).forEach(b => b.classList.toggle('active', b.dataset.t === t));
+  if (segId === 'typeSeg') { type = t; category = CATS[t][0]; renderChips('chips', CATS[t], category, c => { category = c; if (!hasPhoto) drawPlaceholder(); }); }
+}
+
+function renderChips(elId, list, active, onPick) {
+  const el = $(elId);
+  el.innerHTML = list.map(c => `<button class="chip${c === active ? ' active' : ''}">${c}</button>`).join('');
+  el.onclick = e => {
+    if (!e.target.classList.contains('chip')) return;
+    el.querySelectorAll('.chip').forEach(x => x.classList.remove('active'));
+    e.target.classList.add('active');
+    onPick(e.target.textContent);
+  };
+}
+
+async function submit() {
+  const amount = +digits($('amount').value);
   if (!amount) return toast('Nhập số tiền nhé');
-  if (!scriptUrl) return $('setup').classList.remove('hidden');
-  const image = canvas.toDataURL('image/jpeg', 0.7);
-  const entry = { time:new Date().toISOString(), amount:+amount, category, note:$('note').value.trim() };
-  $('rightBtn').disabled = true; toast('Đang lưu...');
+  const c = $('shot');
+  const entry = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    time: new Date().toISOString(), type, amount, category,
+    note: $('note').value.trim(), who: cfg.who
+  };
+  const thumb = (() => { const t = document.createElement('canvas'); t.width = t.height = 160; t.getContext('2d').drawImage(c, 0, 0, 160, 160); return t.toDataURL('image/jpeg', .6); })();
+  const image = hasPhoto ? c.toDataURL('image/jpeg', .7) : null;
+  items.unshift({ ...entry, thumb: hasPhoto ? thumb : '', pending: true });
+  queue.push({ ...entry, image });
+  store.set('items', items); store.set('queue', queue);
+  setCaptured(false); renderAll();
+  toast(navigator.onLine ? 'Đang lưu...' : 'Đang offline — sẽ tự gửi khi có mạng');
+  flushQueue();
+}
+
+let flushing = false;
+async function flushQueue() {
+  if (flushing || !queue.length || !navigator.onLine) return;
+  flushing = true;
   try {
-    // text/plain tránh CORS preflight với Apps Script
-    const res = await fetch(scriptUrl, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({ ...entry, image }) });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error);
-    const thumb = (() => { const c=document.createElement('canvas'); c.width=c.height=200; c.getContext('2d').drawImage(canvas,0,0,200,200); return c.toDataURL('image/jpeg',0.6); })();
-    history.unshift({ ...entry, thumb });
-    history = history.slice(0, 60);
-    localStorage.setItem('history', JSON.stringify(history));
-    renderHistory(); setMode(false); toast('Đã lưu ✓');
-  } catch(e){ toast('Lỗi: ' + e.message); }
-  finally { $('rightBtn').disabled = false; }
+    while (queue.length) {
+      const job = queue[0];
+      await api('add', job);
+      queue.shift(); store.set('queue', queue);
+      const it = items.find(i => i.id === job.id); if (it) delete it.pending;
+      store.set('items', items);
+      toast('Đã lưu ✓');
+    }
+  } catch (e) {
+    toast('Chưa gửi được: ' + e.message + ' — sẽ thử lại');
+  } finally {
+    flushing = false; renderAll();
+  }
 }
 
-function renderHistory(){
-  $('history').innerHTML = history.map(h => `<div class="item"><img src="${h.thumb}"><div class="tag">${fmt(h.amount)}</div></div>`).join('');
+async function sync() {
+  if (!navigator.onLine) return;
+  try {
+    const data = await api('list');
+    const pending = items.filter(i => i.pending);
+    items = [...pending, ...data.items];
+    if (data.budget) cfg.budget = data.budget, store.set('cfg', cfg);
+    store.set('items', items); renderAll();
+  } catch (e) { toast('Không tải được lịch sử: ' + e.message); }
+}
+
+/* ===== Đọc bill bằng AI ===== */
+async function readBill() {
+  if (!hasPhoto) return toast('Chụp ảnh bill trước đã');
+  $('ocrBtn').textContent = '⏳ Đang đọc...';
+  try {
+    const { result } = await api('ocr', { image: $('shot').toDataURL('image/jpeg', .8), categories: CATS[type] });
+    if (result.amount) $('amount').value = Number(result.amount).toLocaleString('vi-VN');
+    if (CATS[type].includes(result.category)) {
+      category = result.category;
+      document.querySelectorAll('#chips .chip').forEach(c => c.classList.toggle('active', c.textContent === category));
+    }
+    if (result.note && !$('note').value) $('note').value = result.note;
+    toast('Đã đọc bill — kiểm tra lại nhé');
+  } catch (e) { toast(e.message); }
+  finally { $('ocrBtn').textContent = '🧾 Đọc bill'; }
+}
+
+/* ===== Giọng nói ===== */
+function parseVoice(text) {
+  const t = text.toLowerCase();
+  let amount = 0;
+  const m = t.match(/(\d+(?:[.,]\d+)?)\s*(triệu|tr|nghìn|ngàn|ngh|k|đồng|đ)?/);
+  if (m) {
+    const n = parseFloat(m[1].replace(',', '.'));
+    const unit = m[2] || '';
+    amount = /triệu|tr/.test(unit) ? n * 1e6 : /nghìn|ngàn|ngh|k/.test(unit) ? n * 1e3 : (n < 1000 ? n * 1e3 : n);
+  }
+  let cat = null;
+  for (const [c, words] of Object.entries(KEYWORDS)) if (words.some(w => t.includes(w))) { cat = c; break; }
+  const note = text.replace(m ? m[0] : '', '').trim();
+  return { amount: Math.round(amount), cat, note };
+}
+
+function listen() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return toast('Trình duyệt chưa hỗ trợ nhập bằng giọng nói');
+  const r = new SR();
+  r.lang = 'vi-VN'; r.interimResults = false;
+  $('rightBtn').classList.add('rec');
+  toast('Nói vd: "cà phê 35 nghìn"', 3000);
+  r.onresult = e => {
+    const { amount, cat, note } = parseVoice(e.results[0][0].transcript);
+    if (cat && CATS.thu.includes(cat) && type !== 'thu') setType('thu');
+    if (!captured) { hasPhoto = false; drawPlaceholder(); setCaptured(true); }
+    if (cat && CATS[type].includes(cat)) { category = cat; renderChips('chips', CATS[type], category, c => { category = c; if (!hasPhoto) drawPlaceholder(); }); if (!hasPhoto) drawPlaceholder(); }
+    if (amount) $('amount').value = amount.toLocaleString('vi-VN');
+    $('note').value = note;
+  };
+  r.onerror = e => toast('Không nghe rõ: ' + e.error);
+  r.onend = () => $('rightBtn').classList.remove('rec');
+  r.start();
+}
+
+/* ===== Lịch sử ===== */
+function renderFeed() {
+  if (!items.length) { $('feed').innerHTML = '<div class="empty">Chưa có giao dịch nào.<br>Chụp khoản đầu tiên nhé 📸</div>'; return; }
+  const groups = {};
+  items.forEach(i => { const d = new Date(i.time).toLocaleDateString('vi-VN', { weekday:'long', day:'numeric', month:'numeric' }); (groups[d] = groups[d] || []).push(i); });
+  $('feed').innerHTML = Object.entries(groups).map(([day, list]) => {
+    const spent = list.filter(i => i.type !== 'thu').reduce((a, i) => a + i.amount, 0);
+    return `<div class="feed-day"><span>${day}</span><span>${fmt(spent)}</span></div>` + list.map(i => `
+      <div class="card" data-id="${i.id}">
+        ${i.thumb ? `<img src="${i.thumb}" loading="lazy">` : `<div class="noimg">${(i.category || '📦').split(' ')[0]}</div>`}
+        <div class="info">
+          <div class="amt ${i.type === 'thu' ? 'thu' : ''}">${i.type === 'thu' ? '+' : ''}${fmt(i.amount)}</div>
+          <div class="sub">${i.category}${i.note ? ' · ' + escapeHtml(i.note) : ''}</div>
+          <div class="sub">${new Date(i.time).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' })}${i.who ? ' · ' + escapeHtml(i.who) : ''} ${i.pending ? '<span class="pending">⏳ chờ gửi</span>' : ''}</div>
+        </div>
+      </div>`).join('');
+  }).join('');
+}
+const escapeHtml = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+
+let editing = null, eType = 'chi', eCat = '';
+function openEditor(id) {
+  editing = items.find(i => i.id === id);
+  if (!editing) return;
+  if (editing.pending) return toast('Giao dịch đang chờ gửi, sửa sau nhé');
+  eType = editing.type === 'thu' ? 'thu' : 'chi'; eCat = editing.category;
+  const paint = () => {
+    document.querySelectorAll('#eTypeSeg button').forEach(b => b.classList.toggle('active', b.dataset.t === eType));
+    renderChips('eChips', CATS[eType], eCat, c => eCat = c);
+  };
+  $('eTypeSeg').onclick = e => { if (!e.target.dataset.t) return; eType = e.target.dataset.t; eCat = CATS[eType][0]; paint(); };
+  paint();
+  $('eAmount').value = Number(editing.amount).toLocaleString('vi-VN');
+  $('eNote').value = editing.note || '';
+  $('editor').classList.remove('hidden');
+}
+
+async function saveEdit() {
+  const patch = { id: editing.id, amount: +digits($('eAmount').value), category: eCat, note: $('eNote').value.trim(), type: eType };
+  try { await api('update', patch); Object.assign(editing, patch); store.set('items', items); renderAll(); closeModals(); toast('Đã cập nhật ✓'); }
+  catch (e) { toast(e.message); }
+}
+
+async function deleteEdit() {
+  if (!confirm('Xoá giao dịch này? Ảnh sẽ được chuyển vào thùng rác Drive.')) return;
+  try { await api('delete', { id: editing.id }); items = items.filter(i => i !== editing); store.set('items', items); renderAll(); closeModals(); toast('Đã xoá'); }
+  catch (e) { toast(e.message); }
+}
+
+/* ===== Thống kê ===== */
+const monthItems = d => items.filter(i => { const t = new Date(i.time); return t.getFullYear() === d.getFullYear() && t.getMonth() === d.getMonth(); });
+const sum = (list, t) => list.filter(i => (t === 'thu') === (i.type === 'thu')).reduce((a, i) => a + i.amount, 0);
+
+function renderStats() {
+  const d = statsMonth, list = monthItems(d);
+  const prev = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+  const chi = sum(list, 'chi'), thu = sum(list, 'thu'), prevChi = sum(monthItems(prev), 'chi');
+  $('monthLabel').textContent = `Tháng ${d.getMonth() + 1}/${d.getFullYear()}`;
+  $('kChi').textContent = fmt(chi); $('kThu').textContent = fmt(thu);
+  $('kBal').textContent = fmt(thu - chi); $('kBal').style.color = thu - chi < 0 ? 'var(--red)' : '';
+
+  // Ngân sách
+  $('budgetBox').classList.toggle('hidden', !cfg.budget);
+  if (cfg.budget) {
+    const pct = chi / cfg.budget * 100;
+    $('budgetText').textContent = `${fmt(chi)} / ${fmt(cfg.budget)}`;
+    $('budgetBar').style.width = Math.min(pct, 100) + '%';
+    $('budgetBar').className = pct >= 100 ? 'over' : pct >= 80 ? 'warn' : '';
+    const now = new Date(), isCur = now.getMonth() === d.getMonth() && now.getFullYear() === d.getFullYear();
+    const daysLeft = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate() - now.getDate() + 1;
+    $('budgetHint').textContent = pct >= 100 ? `Đã vượt ${fmt(chi - cfg.budget)} 😱`
+      : isCur ? `Còn ${fmt(cfg.budget - chi)} — khoảng ${fmt(Math.floor((cfg.budget - chi) / daysLeft))}/ngày trong ${daysLeft} ngày tới` : `Còn dư ${fmt(cfg.budget - chi)}`;
+  }
+
+  // So sánh tháng trước
+  $('cmpText').textContent = prevChi ? `${chi >= prevChi ? '▲' : '▼'} ${Math.abs(Math.round((chi - prevChi) / prevChi * 100))}% so với tháng trước` : '';
+
+  // Donut theo danh mục
+  const byCat = {};
+  list.filter(i => i.type !== 'thu').forEach(i => byCat[i.category] = (byCat[i.category] || 0) + i.amount);
+  const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+  let offset = 25;
+  $('donut').innerHTML = `<circle cx="21" cy="21" r="15.915" fill="none" stroke="#2c2c2e" stroke-width="6"/>` +
+    cats.map(([c, v], i) => { const p = v / chi * 100; const s = `<circle cx="21" cy="21" r="15.915" fill="none" stroke="${COLORS[i % COLORS.length]}" stroke-width="6" stroke-dasharray="${p} ${100 - p}" stroke-dashoffset="${offset}"/>`; offset -= p; return s; }).join('');
+  $('legend').innerHTML = cats.length ? cats.map(([c, v], i) => `<div><i style="background:${COLORS[i % COLORS.length]}"></i>${c}<b>${Math.round(v / chi * 100)}%</b></div>`).join('') : '<span style="color:var(--muted)">Chưa có khoản chi</span>';
+
+  // Theo tuần
+  const weeks = [0, 0, 0, 0, 0];
+  list.filter(i => i.type !== 'thu').forEach(i => weeks[Math.min(4, Math.floor((new Date(i.time).getDate() - 1) / 7))] += i.amount);
+  const max = Math.max(...weeks, 1);
+  $('weeks').innerHTML = weeks.map((w, i) => `<div>${w ? Math.round(w / 1000) + 'k' : ''}<span style="height:${w / max * 85}%"></span>T${i + 1}</div>`).join('');
+}
+
+/* ===== Chung ===== */
+function renderHeader() {
   const today = new Date().toDateString();
-  const total = history.filter(h => new Date(h.time).toDateString() === today).reduce((a,h)=>a+h.amount,0);
-  $('todayTotal').textContent = 'Hôm nay: ' + fmt(total);
+  const spent = items.filter(i => i.type !== 'thu' && new Date(i.time).toDateString() === today).reduce((a, i) => a + i.amount, 0);
+  const pill = $('headerPill');
+  pill.textContent = (queue.length ? `⏳${queue.length} · ` : '') + 'Hôm nay: ' + fmt(spent);
+  const monthChi = sum(monthItems(new Date()), 'chi');
+  pill.classList.toggle('warn', !!cfg.budget && monthChi >= cfg.budget * .8);
+}
+function renderAll() { renderHeader(); renderFeed(); renderStats(); }
+
+function showTab(name) {
+  ['camera','feed','stats'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== name));
+  document.querySelectorAll('nav button[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  if (name === 'camera') startCamera(); else stream?.getTracks().forEach(t => t.stop());
+  if (name !== 'camera') sync();
 }
 
-$('chips').innerHTML = CATEGORIES.map((c,i)=>`<button class="chip${i?'':' active'}">${c}</button>`).join('');
-$('chips').onclick = e => { if (!e.target.classList.contains('chip')) return; document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active')); e.target.classList.add('active'); category = e.target.textContent; };
-$('amount').oninput = e => { const v=e.target.value.replace(/\D/g,''); e.target.value = v ? Number(v).toLocaleString('vi-VN') : ''; };
-$('shutter').onclick = () => captured ? send() : capture();
-$('leftBtn').onclick = () => captured ? setMode(false) : (facing = facing==='user'?'environment':'user', startCamera());
-$('rightBtn').onclick = () => captured ? send() : ($('urlInput').value = scriptUrl, $('setup').classList.remove('hidden'));
-$('saveUrl').onclick = () => { scriptUrl = $('urlInput').value.trim(); localStorage.setItem('scriptUrl', scriptUrl); $('setup').classList.add('hidden'); toast('Đã lưu URL'); };
+function openSettings() {
+  $('sWho').value = cfg.who; $('sToken').value = cfg.token; $('sUrl').value = cfg.url;
+  $('sBudget').value = cfg.budget ? Number(cfg.budget).toLocaleString('vi-VN') : '';
+  $('settings').classList.remove('hidden');
+}
+async function saveSettings() {
+  const budget = +digits($('sBudget').value);
+  const budgetChanged = budget !== cfg.budget;
+  Object.assign(cfg, { who: $('sWho').value.trim(), token: $('sToken').value.trim(), url: $('sUrl').value.trim() || DEFAULT_SCRIPT_URL, budget });
+  localStorage.removeItem('scriptUrl');
+  store.set('cfg', cfg); closeModals(); renderAll();
+  try { if (budgetChanged) await api('setBudget', { budget }); await sync(); toast('Đã lưu cài đặt ✓'); flushQueue(); }
+  catch (e) { toast(e.message); }
+}
+const closeModals = () => document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
 
-if (!scriptUrl) $('setup').classList.remove('hidden');
-renderHistory(); startCamera();
+/* ===== Sự kiện ===== */
+$('shutter').onclick = () => captured ? submit() : capture();
+$('leftBtn').onclick = () => captured ? setCaptured(false) : (facing = facing === 'user' ? 'environment' : 'user', startCamera());
+$('rightBtn').onclick = () => captured ? submit() : listen();
+$('ocrBtn').onclick = readBill;
+$('noPhotoBtn').onclick = () => { hasPhoto = !hasPhoto; if (hasPhoto) { setCaptured(false); } else { drawPlaceholder(); $('noPhotoBtn').classList.add('on'); } };
+$('typeSeg').onclick = e => e.target.dataset.t && setType(e.target.dataset.t);
+['amount','eAmount','sBudget'].forEach(id => $(id).oninput = e => { const v = digits(e.target.value); e.target.value = v ? Number(v).toLocaleString('vi-VN') : ''; });
+$('feed').onclick = e => { const c = e.target.closest('.card'); if (c) openEditor(c.dataset.id); };
+document.querySelectorAll('nav button[data-tab]').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+$('settingsBtn').onclick = openSettings;
+$('sSave').onclick = saveSettings;
+$('eSave').onclick = saveEdit;
+$('eDelete').onclick = deleteEdit;
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = closeModals);
+document.querySelectorAll('.modal').forEach(m => m.onclick = e => { if (e.target === m) closeModals(); });
+$('prevM').onclick = () => { statsMonth.setMonth(statsMonth.getMonth() - 1); renderStats(); };
+$('nextM').onclick = () => { statsMonth.setMonth(statsMonth.getMonth() + 1); renderStats(); };
+window.addEventListener('online', () => { toast('Có mạng lại — đang gửi...'); flushQueue(); });
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+setType('chi');
+renderAll();
+startCamera();
+flushQueue();
+sync();
+if (!cfg.token) setTimeout(() => { toast('Nhập mã bí mật trong Cài đặt để bắt đầu'); openSettings(); }, 600);
 </script>
 </body>
 </html>
