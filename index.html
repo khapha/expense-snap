@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Snap Chi Tiêu</title>
+<style>
+  :root { --accent:#ffc800; --bg:#000; --card:#1c1c1e; --text:#fff; --muted:#8e8e93; }
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  body { background:var(--bg); color:var(--text); font-family:-apple-system,system-ui,sans-serif; min-height:100dvh; display:flex; flex-direction:column; align-items:center; padding:16px; padding-top:max(16px,env(safe-area-inset-top)); }
+  header { width:100%; max-width:420px; display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+  header h1 { font-size:20px; }
+  .total { background:var(--card); padding:6px 12px; border-radius:20px; font-size:14px; }
+  .frame { position:relative; width:100%; max-width:420px; aspect-ratio:1; border-radius:40px; overflow:hidden; background:var(--card); }
+  video, canvas#shot { width:100%; height:100%; object-fit:cover; display:block; }
+  canvas#shot { display:none; }
+  .overlay { position:absolute; left:0; right:0; bottom:20px; display:flex; justify-content:center; }
+  .amount-input { background:rgba(0,0,0,.55); backdrop-filter:blur(10px); border:none; color:#fff; font-size:22px; font-weight:700; text-align:center; padding:10px 18px; border-radius:24px; width:70%; outline:none; }
+  .controls { display:flex; align-items:center; justify-content:space-around; width:100%; max-width:420px; margin:28px 0 16px; }
+  .shutter { width:84px; height:84px; border-radius:50%; border:5px solid var(--accent); background:transparent; padding:5px; cursor:pointer; }
+  .shutter span { display:block; width:100%; height:100%; border-radius:50%; background:#fff; transition:transform .1s; }
+  .shutter:active span { transform:scale(.9); }
+  .icon-btn { width:48px; height:48px; border-radius:50%; background:var(--card); border:none; color:#fff; font-size:20px; cursor:pointer; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; max-width:420px; margin-bottom:12px; }
+  .chip { background:var(--card); border:2px solid transparent; color:#fff; padding:8px 14px; border-radius:20px; font-size:14px; cursor:pointer; }
+  .chip.active { border-color:var(--accent); }
+  .note { width:100%; max-width:420px; background:var(--card); border:none; color:#fff; padding:12px 16px; border-radius:16px; font-size:15px; outline:none; }
+  .hidden { display:none !important; }
+  .history { width:100%; max-width:420px; margin-top:24px; display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .history .item { position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background:var(--card); }
+  .history img { width:100%; height:100%; object-fit:cover; }
+  .history .tag { position:absolute; bottom:4px; left:4px; right:4px; font-size:11px; background:rgba(0,0,0,.6); padding:2px 6px; border-radius:8px; text-align:center; }
+  .toast { position:fixed; top:20px; left:50%; transform:translateX(-50%); background:var(--card); padding:10px 18px; border-radius:20px; font-size:14px; opacity:0; transition:opacity .3s; z-index:9; }
+  .toast.show { opacity:1; }
+  .setup { position:fixed; inset:0; background:rgba(0,0,0,.9); display:flex; align-items:center; justify-content:center; padding:16px; z-index:10; }
+  .setup div { background:var(--card); padding:20px; border-radius:20px; max-width:420px; width:100%; }
+  .setup input { width:100%; margin:12px 0; padding:10px; border-radius:10px; border:none; }
+  .setup button { width:100%; padding:12px; border-radius:12px; border:none; background:var(--accent); font-weight:700; }
+</style>
+</head>
+<body>
+<header>
+  <h1>💸 Snap Chi Tiêu</h1>
+  <div class="total" id="todayTotal">Hôm nay: 0đ</div>
+</header>
+
+<div class="frame">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="shot"></canvas>
+  <div class="overlay hidden" id="amountBox">
+    <input class="amount-input" id="amount" inputmode="numeric" placeholder="Số tiền (đ)">
+  </div>
+</div>
+
+<div class="controls">
+  <button class="icon-btn" id="leftBtn" title="Đổi camera">🔄</button>
+  <button class="shutter" id="shutter"><span></span></button>
+  <button class="icon-btn" id="rightBtn" title="Cài đặt">⚙️</button>
+</div>
+
+<div class="chips hidden" id="chips"></div>
+<input class="note hidden" id="note" placeholder="Ghi chú (vd: cà phê với team)">
+
+<div class="history" id="history"></div>
+<div class="toast" id="toast"></div>
+
+<div class="setup hidden" id="setup">
+  <div>
+    <h3>Kết nối Google Sheet</h3>
+    <p style="color:var(--muted);font-size:13px;margin-top:6px">Dán URL Web App từ Google Apps Script (xem README.md)</p>
+    <input id="urlInput" placeholder="https://script.google.com/macros/s/.../exec">
+    <button id="saveUrl">Lưu</button>
+  </div>
+</div>
+
+<script>
+const CATEGORIES = ['🍜 Ăn uống','☕ Cà phê','🛵 Đi lại','🛍️ Mua sắm','🎮 Giải trí','🏠 Nhà cửa','💊 Sức khỏe','📦 Khác'];
+const $ = id => document.getElementById(id);
+const video = $('video'), canvas = $('shot');
+let facing = 'environment', stream, captured = false, category = CATEGORIES[0];
+let scriptUrl = localStorage.getItem('scriptUrl') || '';
+let history = JSON.parse(localStorage.getItem('history') || '[]');
+
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+const fmt = n => Number(n).toLocaleString('vi-VN') + 'đ';
+
+async function startCamera(){
+  stream?.getTracks().forEach(t=>t.stop());
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:facing, width:{ideal:1080}, height:{ideal:1080} }, audio:false });
+    video.srcObject = stream;
+  } catch(e){ toast('Không mở được camera: ' + e.message); }
+}
+
+function capture(){
+  const s = Math.min(video.videoWidth, video.videoHeight);
+  const size = 720;
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (facing === 'user') { ctx.translate(size,0); ctx.scale(-1,1); }
+  ctx.drawImage(video,(video.videoWidth-s)/2,(video.videoHeight-s)/2,s,s,0,0,size,size);
+  ctx.setTransform(1,0,0,1,0,0);
+  setMode(true);
+  $('amount').focus();
+}
+
+function setMode(isCaptured){
+  captured = isCaptured;
+  video.classList.toggle('hidden', isCaptured);
+  canvas.style.display = isCaptured ? 'block' : 'none';
+  ['amountBox','chips','note'].forEach(id => $(id).classList.toggle('hidden', !isCaptured));
+  $('leftBtn').textContent = isCaptured ? '✕' : '🔄';
+  $('rightBtn').textContent = isCaptured ? '➤' : '⚙️';
+  if (!isCaptured) { $('amount').value=''; $('note').value=''; }
+}
+
+async function send(){
+  const amount = $('amount').value.replace(/\D/g,'');
+  if (!amount) return toast('Nhập số tiền nhé');
+  if (!scriptUrl) return $('setup').classList.remove('hidden');
+  const image = canvas.toDataURL('image/jpeg', 0.7);
+  const entry = { time:new Date().toISOString(), amount:+amount, category, note:$('note').value.trim() };
+  $('rightBtn').disabled = true; toast('Đang lưu...');
+  try {
+    // text/plain tránh CORS preflight với Apps Script
+    const res = await fetch(scriptUrl, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({ ...entry, image }) });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    const thumb = (() => { const c=document.createElement('canvas'); c.width=c.height=200; c.getContext('2d').drawImage(canvas,0,0,200,200); return c.toDataURL('image/jpeg',0.6); })();
+    history.unshift({ ...entry, thumb });
+    history = history.slice(0, 60);
+    localStorage.setItem('history', JSON.stringify(history));
+    renderHistory(); setMode(false); toast('Đã lưu ✓');
+  } catch(e){ toast('Lỗi: ' + e.message); }
+  finally { $('rightBtn').disabled = false; }
+}
+
+function renderHistory(){
+  $('history').innerHTML = history.map(h => `<div class="item"><img src="${h.thumb}"><div class="tag">${fmt(h.amount)}</div></div>`).join('');
+  const today = new Date().toDateString();
+  const total = history.filter(h => new Date(h.time).toDateString() === today).reduce((a,h)=>a+h.amount,0);
+  $('todayTotal').textContent = 'Hôm nay: ' + fmt(total);
+}
+
+$('chips').innerHTML = CATEGORIES.map((c,i)=>`<button class="chip${i?'':' active'}">${c}</button>`).join('');
+$('chips').onclick = e => { if (!e.target.classList.contains('chip')) return; document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active')); e.target.classList.add('active'); category = e.target.textContent; };
+$('amount').oninput = e => { const v=e.target.value.replace(/\D/g,''); e.target.value = v ? Number(v).toLocaleString('vi-VN') : ''; };
+$('shutter').onclick = () => captured ? send() : capture();
+$('leftBtn').onclick = () => captured ? setMode(false) : (facing = facing==='user'?'environment':'user', startCamera());
+$('rightBtn').onclick = () => captured ? send() : ($('urlInput').value = scriptUrl, $('setup').classList.remove('hidden'));
+$('saveUrl').onclick = () => { scriptUrl = $('urlInput').value.trim(); localStorage.setItem('scriptUrl', scriptUrl); $('setup').classList.add('hidden'); toast('Đã lưu URL'); };
+
+if (!scriptUrl) $('setup').classList.remove('hidden');
+renderHistory(); startCamera();
+</script>
+</body>
+</html>
