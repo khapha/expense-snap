@@ -387,7 +387,8 @@ function parseVoice(text) {
     amount = /triệu|tr/.test(unit) ? n * 1e6 : /nghìn|ngàn|ngh|k/.test(unit) ? n * 1e3 : (n < 1000 ? n * 1e3 : n);
   }
   let cat = null;
-  for (const [c, words] of Object.entries(KEYWORDS)) if (words.some(w => t.includes(w))) { cat = c; break; }
+  const padded = ` ${t} `;  // khớp nguyên từ, tránh "xăng" chứa "ăn"
+  for (const [c, words] of Object.entries(KEYWORDS)) if (words.some(w => padded.includes(` ${w} `))) { cat = c; break; }
   const note = text.replace(m ? m[0] : '', '').trim();
   return { amount: Math.round(amount), cat, note };
 }
