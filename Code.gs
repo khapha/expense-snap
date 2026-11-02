@@ -5,7 +5,7 @@ const SHEET_NAME = 'ChiTieu';
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getSpreadsheet();
     let sheet = ss.getSheetByName(SHEET_NAME);
     if (!sheet) {
       sheet = ss.insertSheet(SHEET_NAME);
@@ -33,6 +33,18 @@ function doPost(e) {
   } catch (err) {
     return json({ ok: false, error: String(err) });
   }
+}
+
+// Script gắn với Sheet thì dùng Sheet đó; script độc lập thì tự tạo Sheet "Snap Chi Tieu" và nhớ ID
+function getSpreadsheet() {
+  const active = SpreadsheetApp.getActiveSpreadsheet();
+  if (active) return active;
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('SPREADSHEET_ID');
+  if (id) return SpreadsheetApp.openById(id);
+  const ss = SpreadsheetApp.create(FOLDER_NAME);
+  props.setProperty('SPREADSHEET_ID', ss.getId());
+  return ss;
 }
 
 function json(obj) {
