@@ -134,7 +134,7 @@ const receiptPrompt = categories =>
 function ocrGemini(image, categories) {
   const key = props().getProperty('GEMINI_API_KEY');
   if (!key) throw new Error('Chưa cài GEMINI_API_KEY trong Script Properties');
-  const model = props().getProperty('GEMINI_MODEL') || 'gemini-2.5-flash-lite';
+  const model = props().getProperty('GEMINI_MODEL') || 'gemini-3.5-flash-lite';
   const [header, base64] = image.split(',');
   const mime = header.match(/data:(.*?);/)[1];
   const call = generationConfig => UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {

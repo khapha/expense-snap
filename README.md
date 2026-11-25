@@ -31,7 +31,7 @@ App: https://khapha.github.io/expense-snap/
 **Miễn phí — Gemini:**
 1. Lấy API key tại https://aistudio.google.com (không cần thẻ).
 2. Apps Script → ⚙️ **Project Settings → Script Properties → Add property**: `GEMINI_API_KEY` = key của bạn.
-3. Nếu gặp lỗi "model not found": chạy hàm `listGeminiModels`, chọn một tên trong Execution log và đặt Script Property `GEMINI_MODEL` (mặc định `gemini-2.5-flash-lite`).
+3. Nếu gặp lỗi "model not found": chạy hàm `listGeminiModels`, chọn một tên trong Execution log và đặt Script Property `GEMINI_MODEL` (mặc định `gemini-3.5-flash-lite`).
 
 > ⚠️ Với gói free, Google có thể dùng nội dung bạn gửi để cải thiện sản phẩm và người thật có thể đọc. Đừng chụp hoá đơn có thông tin nhạy cảm (số thẻ, tên, địa chỉ). Hạn mức free có giới hạn số lượt mỗi ngày/phút; hết thì bot báo "hết hạn mức", thử lại sau.
 
