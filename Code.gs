@@ -433,7 +433,7 @@ function addFromPhoto(msg, from) {
   });
   lap('saved');
   const today = tgData().items.filter(i => i.day === dayKey(new Date()) && isChi(i));
-  return '📸 Đã ghi<b>' + vnd(amount) + '</b> — ' + esc(category) + (note ? ' (' + esc(note) + ')' : '') +
+  return '📸 Đã ghi <b>' + vnd(amount) + '</b> — ' + esc(category) + (note ? ' (' + esc(note) + ')' : '') +
     '\nHôm nay đã chi: <b>' + vnd(sumOf(today)) + '</b>\nSai số? Gõ /undo rồi gửi lại kèm chú thích.';
 }
 
