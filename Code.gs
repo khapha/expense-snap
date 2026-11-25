@@ -147,17 +147,28 @@ function ocrGemini(image, categories) {
       generationConfig
     })
   });
+  // 503 = Gemini quá tải tạm thời: thử lại tối đa 3 lần, chờ lâu dần
+  const callWithRetry = cfg => {
+    let r;
+    for (let i = 0; i < 3; i++) {
+      r = call(cfg);
+      if (r.getResponseCode() !== 503) break;
+      Utilities.sleep(2000 * (i + 1));
+    }
+    return r;
+  };
   const schema = {
     type: 'OBJECT',
     properties: { amount: { type: 'INTEGER' }, category: { type: 'STRING', enum: categories }, note: { type: 'STRING' } },
     required: ['amount', 'category', 'note']
   };
-  let res = call({ responseMimeType: 'application/json', responseSchema: schema });
+  let res = callWithRetry({ responseMimeType: 'application/json', responseSchema: schema });
   // API từ chối lược đồ (khác phiên bản) thì thử lại chỉ với yêu cầu JSON trong prompt
-  if (res.getResponseCode() === 400) res = call({ responseMimeType: 'application/json' });
+  if (res.getResponseCode() === 400) res = callWithRetry({ responseMimeType: 'application/json' });
   const code = res.getResponseCode();
   const body = JSON.parse(res.getContentText());
   if (code === 429) throw new Error('Gemini đã hết hạn mức miễn phí, thử lại sau ít phút');
+  if (code === 503) throw new Error('Gemini đang quá tải, hãy gửi lại ảnh sau ít phút');
   if (code !== 200) throw new Error('Gemini API (' + code + '): ' + (body.error && body.error.message));
   const parts = body.candidates && body.candidates[0] && body.candidates[0].content && body.candidates[0].content.parts;
   if (!parts) throw new Error('Gemini không trả kết quả' + (body.promptFeedback ? ': ' + body.promptFeedback.blockReason : ''));
