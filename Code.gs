@@ -252,17 +252,34 @@ function dailySummary() {
 // ===== Telegram bot =====
 // Cài đặt: xem README. Cần Script Properties: TELEGRAM_BOT_TOKEN, WEBAPP_URL, TELEGRAM_CHAT_IDS.
 const TG_CATS = {
-  chi: ['🍜 Ăn uống', '☕ Cà phê', '🛵 Đi lại', '🛍️ Mua sắm', '🎮 Giải trí', '🏠 Nhà cửa', '💊 Sức khỏe', '📦 Khác'],
+  chi: ['🍜 Ăn uống', '☕ Cà phê', '🛒 Đi chợ', '🛵 Đi lại', '🅿️ Gửi xe', '⚡ Điện', '💧 Nước', '🏢 Phí quản lý', '🌐 Internet', '📱 Điện thoại', '🔥 Gas', '🏠 Tiền nhà', '🪑 Đồ dùng nhà cửa', '🧺 Giặt ủi', '🧴 Skincare', '💇 Làm đẹp', '🩹 Thuốc', '💊 Sức khỏe', '🛍️ Mua sắm', '🎮 Giải trí', '📚 Học tập', '🐾 Thú cưng', '🎁 Quà tặng', '🧾 Phát sinh', '📦 Khác'],
   thu: ['💰 Lương', '🎁 Thưởng', '💸 Được cho', '📈 Đầu tư', '📦 Khác']
 };
 const TG_KEYWORDS = {
-  '☕ Cà phê': ['cà phê', 'cafe', 'cafê', 'trà sữa', 'trà'],
-  '🍜 Ăn uống': ['ăn', 'cơm', 'phở', 'bún', 'bánh', 'lẩu', 'nhậu', 'bia'],
-  '🛵 Đi lại': ['xăng', 'grab', 'taxi', 'xe', 'gửi xe', 'vé'],
-  '🛍️ Mua sắm': ['mua', 'áo', 'quần', 'giày', 'shopee', 'lazada'],
-  '🎮 Giải trí': ['phim', 'game', 'karaoke', 'du lịch'],
-  '🏠 Nhà cửa': ['điện', 'nước nhà', 'tiền nhà', 'internet', 'wifi', 'gas'],
-  '💊 Sức khỏe': ['thuốc', 'khám', 'bệnh viện', 'gym'],
+  '🍜 Ăn uống': ['ăn', 'cơm', 'phở', 'bún', 'bánh', 'lẩu', 'nhậu', 'bia', 'mì', 'cháo', 'xôi', 'đồ ăn', 'bữa', 'pizza', 'nướng'],
+  '☕ Cà phê': ['cà phê', 'cafe', 'cafê', 'trà sữa', 'trà', 'nước ngọt', 'nước suối'],
+  '🛒 Đi chợ': ['đi chợ', 'chợ', 'siêu thị', 'bách hóa', 'bách hóa xanh', 'winmart', 'coopmart', 'tạp hóa', 'rau', 'thịt', 'cá', 'trứng', 'trái cây', 'hoa quả'],
+  '🛵 Đi lại': ['xăng', 'đổ xăng', 'grab', 'xanh sm', 'taxi', 'xe', 'vé', 'xe buýt', 'buýt', 'rửa xe', 'sửa xe', 'tàu', 'máy bay'],
+  '🅿️ Gửi xe': ['gửi xe', 'giữ xe', 'đậu xe', 'bãi xe', 'phí gửi xe', 'vé xe tháng'],
+  '⚡ Điện': ['điện', 'tiền điện', 'hóa đơn điện', 'evn'],
+  '💧 Nước': ['nước', 'tiền nước', 'nước sinh hoạt', 'hóa đơn nước', 'nước máy'],
+  '🏢 Phí quản lý': ['phí quản lý', 'quản lý', 'ban quản lý', 'phí chung cư', 'chung cư', 'phí dịch vụ', 'phí vệ sinh'],
+  '🌐 Internet': ['internet', 'wifi', 'mạng', 'cáp quang', 'fpt'],
+  '📱 Điện thoại': ['điện thoại', 'sim', '4g', '5g', 'data', 'nạp thẻ', 'nạp tiền', 'cước', 'viettel', 'mobifone', 'vinaphone'],
+  '🔥 Gas': ['gas', 'bình gas', 'bình ga', 'tiền gas'],
+  '🏠 Tiền nhà': ['tiền nhà', 'tiền thuê', 'thuê nhà', 'thuê phòng', 'tiền phòng', 'tiền trọ', 'trọ'],
+  '🪑 Đồ dùng nhà cửa': ['đồ dùng', 'gia dụng', 'đồ gia dụng', 'nhà cửa', 'bột giặt', 'nước giặt', 'nước rửa chén', 'giấy vệ sinh', 'nước lau sàn', 'túi rác', 'xà phòng', 'chén', 'bát', 'nồi', 'chảo', 'khăn', 'gối', 'chăn', 'bóng đèn', 'sửa nhà'],
+  '🧺 Giặt ủi': ['giặt', 'giặt ủi', 'giặt đồ', 'ủi', 'tiệm giặt'],
+  '🧴 Skincare': ['skincare', 'kem dưỡng', 'sữa rửa mặt', 'serum', 'toner', 'kem chống nắng', 'mặt nạ', 'dưỡng da', 'tẩy trang', 'mỹ phẩm', 'son'],
+  '💇 Làm đẹp': ['cắt tóc', 'uốn tóc', 'nhuộm tóc', 'gội đầu', 'làm tóc', 'làm nail', 'nail', 'spa', 'massage', 'salon', 'barber'],
+  '🩹 Thuốc': ['thuốc', 'vitamin', 'khẩu trang', 'nhà thuốc', 'pharmacity', 'long châu', 'băng gạc'],
+  '💊 Sức khỏe': ['khám', 'bệnh viện', 'phòng khám', 'nha khoa', 'răng', 'xét nghiệm', 'bảo hiểm', 'gym', 'yoga', 'thể thao'],
+  '🛍️ Mua sắm': ['mua', 'áo', 'quần', 'giày', 'váy', 'dép', 'túi', 'balo', 'phụ kiện', 'shopee', 'lazada', 'tiki'],
+  '🎮 Giải trí': ['phim', 'xem phim', 'cgv', 'game', 'karaoke', 'du lịch', 'đi chơi', 'netflix', 'spotify', 'youtube', 'concert'],
+  '📚 Học tập': ['học', 'học phí', 'khóa học', 'sách', 'vở', 'bút', 'văn phòng phẩm', 'tiếng anh', 'udemy'],
+  '🐾 Thú cưng': ['thú cưng', 'thú y', 'chó', 'mèo', 'cát mèo', 'pet', 'thức ăn cho'],
+  '🎁 Quà tặng': ['quà', 'quà tặng', 'tặng', 'biếu', 'lì xì', 'mừng cưới', 'đám cưới', 'phúng điếu', 'sinh nhật', 'từ thiện'],
+  '🧾 Phát sinh': ['phát sinh', 'đột xuất', 'sửa chữa', 'sửa', 'hỏng', 'khẩn cấp', 'phạt', 'lệ phí'],
   '💰 Lương': ['lương'],
   '🎁 Thưởng': ['thưởng']
 };
@@ -436,8 +453,12 @@ function parseExpense(text) {
   const { amount, raw } = parseAmount(t);
   const padded = ' ' + t.replace(/[.,!?]/g, ' ') + ' '; // khớp nguyên từ, tránh "xăng" chứa "ăn"
   let category = '📦 Khác';
+  // Từ khóa dài nhất thắng: "gửi xe" (Gửi xe) thắng "xe" (Đi lại), "bột giặt" thắng "giặt"
+  let best = 0;
   for (const c of Object.keys(TG_KEYWORDS)) {
-    if (TG_KEYWORDS[c].some(w => padded.includes(' ' + w + ' '))) { category = c; break; }
+    for (const w of TG_KEYWORDS[c]) {
+      if (w.length > best && padded.includes(' ' + w + ' ')) { category = c; best = w.length; }
+    }
   }
   const idx = raw ? t.indexOf(raw) : -1;
   const note = (idx < 0 ? text : text.slice(0, idx) + text.slice(idx + raw.length)).replace(/\s+/g, ' ').trim();
