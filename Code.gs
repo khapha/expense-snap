@@ -326,6 +326,7 @@ function handleTelegram(e, update) {
     }
     let reply;
     const from = Object.assign({}, msg.from, { uid: update.update_id });
+    if (msg.photo) tgSend(chatId, '⏳ Đang đọc ảnh, đợi mình một chút...');
     try { reply = msg.photo ? addFromPhoto(msg, from) : tgReply(msg.text.trim(), from); }
     catch (err) { reply = '⚠️ Lỗi: ' + esc(err.message || err); }
     tgSend(chatId, reply);
@@ -380,6 +381,8 @@ function addFromText(text, from) {
 
 // Ảnh hoá đơn: Claude đọc số tiền/danh mục/ghi chú, chú thích của người gửi (nếu có) được ưu tiên
 function addFromPhoto(msg, from) {
+  const t0 = Date.now();
+  const lap = step => console.log('photo ' + step + ': ' + (Date.now() - t0) + 'ms');
   const token = props().getProperty('TELEGRAM_BOT_TOKEN');
   const photo = msg.photo[msg.photo.length - 1]; // bản lớn nhất
   const meta = JSON.parse(UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/getFile?file_id=' + photo.file_id, { muteHttpExceptions: true }).getContentText());
@@ -387,7 +390,9 @@ function addFromPhoto(msg, from) {
   const bytes = UrlFetchApp.fetch('https://api.telegram.org/file/bot' + token + '/' + meta.result.file_path).getBlob().getBytes();
   const image = 'data:image/jpeg;base64,' + Utilities.base64Encode(bytes);
 
+  lap('downloaded');
   const ai = ACTIONS.ocr({ image, categories: TG_CATS.chi }).result;
+  lap('ai done');
   const cap = msg.caption ? parseExpense(msg.caption) : null;
   const amount = (cap && cap.amount) || ai.amount;
   if (!amount) return 'Mình chưa đọc được số tiền trong ảnh. Gửi lại ảnh kèm chú thích, ví dụ: <code>45k</code>';
@@ -398,8 +403,9 @@ function addFromPhoto(msg, from) {
     id: 'tg' + from.uid, time: new Date().toISOString(), type: 'chi', amount, category, note,
     who: from.first_name || 'Telegram', image
   });
+  lap('saved');
   const today = tgData().items.filter(i => i.day === dayKey(new Date()) && isChi(i));
-  return '📸 Đã ghi <b>' + vnd(amount) + '</b> — ' + esc(category) + (note ? ' (' + esc(note) + ')' : '') +
+  return '📸 Đã ghi<b>' + vnd(amount) + '</b> — ' + esc(category) + (note ? ' (' + esc(note) + ')' : '') +
     '\nHôm nay đã chi: <b>' + vnd(sumOf(today)) + '</b>\nSai số? Gõ /undo rồi gửi lại kèm chú thích.';
 }
 
