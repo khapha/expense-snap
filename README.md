@@ -54,6 +54,9 @@ Bot dùng chung Sheet với app: ghi chi tiêu bằng cách nhắn tin, xem th�
 
 Chỉ các Chat ID trong `TELEGRAM_CHAT_IDS` mới dùng được bot; người khác chỉ nhận được ID của họ.
 
+### Gửi ảnh hoá đơn cho bot
+Gửi ảnh bill (có thể kèm chú thích như `45k` hoặc `cà phê`) → Claude đọc số tiền, danh mục, ghi chú rồi ghi vào Sheet cùng ảnh. Chú thích của bạn được ưu tiên hơn kết quả AI. Cần Script Property `ANTHROPIC_API_KEY` (xem phần đọc bill ở trên). Đọc sai thì `/undo` rồi gửi lại kèm chú thích.
+
 ### Bot lúc có lúc không phản hồi (lỗi 302)
 Apps Script trả mã 302 nên Telegram coi là lỗi, gửi lại và trì hoãn tin. Chạy hàm `webhookInfo`: nếu `last_error_message` là `302 Found` thì dùng bộ chuyển tiếp `worker.js` trên Cloudflare Workers (miễn phí):
 1. Đăng ký https://dash.cloudflare.com → **Workers & Pages → Create → Create Worker** → đặt tên (vd `expense-bot`) → **Deploy** → **Edit code** → dán `worker.js` → **Deploy**.

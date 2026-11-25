@@ -195,7 +195,8 @@ const TG_KEYWORDS = {
 const TG_HELP = '<b>💸 Bot chi tiêu</b>\n' +
   'Gõ thẳng để ghi: <code>cà phê 35k</code>, <code>ăn trưa 45</code>, <code>lương 12tr</code>\n\n' +
   '/today — hôm nay\n/week — 7 ngày qua\n/month — tháng này\n/top — 5 khoản chi lớn nhất tháng\n' +
-  '/budget 5tr — đặt ngân sách tháng\n/undo — xoá khoản vừa ghi';
+  '/budget 5tr — đặt ngân sách tháng\n/undo — xoá khoản vừa ghi\n\n' +
+  '📸 Gửi ảnh hoá đơn (có thể kèm chú thích như <code>45k</code>) để bot tự đọc và ghi.';
 
 const vnd = n => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ';
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -247,7 +248,7 @@ function handleTelegram(e, update) {
     const secret = props().getProperty('TELEGRAM_SECRET');
     if (!secret || !e.parameter || e.parameter.tg !== secret) return json({ ok: false });
     const msg = update.message;
-    if (!msg || !msg.text) return json({ ok: true });
+    if (!msg || !(msg.text || msg.photo)) return json({ ok: true });
     // Telegram gửi lại nếu phản hồi chậm. Đã xong thì bỏ qua; đang xử lý dở quá 60s (lỗi/treo) thì xử lý lại
     const cache = CacheService.getScriptCache();
     const ukey = 'tg_' + update.update_id;
@@ -261,7 +262,8 @@ function handleTelegram(e, update) {
       return json({ ok: true });
     }
     let reply;
-    try { reply = tgReply(msg.text.trim(), Object.assign({}, msg.from, { uid: update.update_id })); }
+    const from = Object.assign({}, msg.from, { uid: update.update_id });
+    try { reply = msg.photo ? addFromPhoto(msg, from) : tgReply(msg.text.trim(), from); }
     catch (err) { reply = '⚠️ Lỗi: ' + esc(err.message || err); }
     tgSend(chatId, reply);
     cache.put(ukey, 'done', 600);
@@ -311,6 +313,31 @@ function addFromText(text, from) {
   const today = tgData().items.filter(i => i.day === dayKey(new Date()) && isChi(i));
   return (p.type === 'thu' ? '💰 Đã ghi thu ' : '✅ Đã ghi ') + '<b>' + vnd(p.amount) + '</b> — ' + esc(p.category) + (p.note ? ' (' + esc(p.note) + ')' : '') +
     '\nHôm nay đã chi: <b>' + vnd(sumOf(today)) + '</b>';
+}
+
+// Ảnh hoá đơn: Claude đọc số tiền/danh mục/ghi chú, chú thích của người gửi (nếu có) được ưu tiên
+function addFromPhoto(msg, from) {
+  const token = props().getProperty('TELEGRAM_BOT_TOKEN');
+  const photo = msg.photo[msg.photo.length - 1]; // bản lớn nhất
+  const meta = JSON.parse(UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/getFile?file_id=' + photo.file_id, { muteHttpExceptions: true }).getContentText());
+  if (!meta.ok) throw new Error('Không tải được ảnh từ Telegram');
+  const bytes = UrlFetchApp.fetch('https://api.telegram.org/file/bot' + token + '/' + meta.result.file_path).getBlob().getBytes();
+  const image = 'data:image/jpeg;base64,' + Utilities.base64Encode(bytes);
+
+  const ai = ACTIONS.ocr({ image, categories: TG_CATS.chi }).result;
+  const cap = msg.caption ? parseExpense(msg.caption) : null;
+  const amount = (cap && cap.amount) || ai.amount;
+  if (!amount) return 'Mình chưa đọc được số tiền trong ảnh. Gửi lại ảnh kèm chú thích, ví dụ: <code>45k</code>';
+  const category = cap && TG_CATS.chi.includes(cap.category) && cap.category !== '📦 Khác' ? cap.category : ai.category;
+  const note = (cap && cap.note) || ai.note;
+
+  ACTIONS.add({
+    id: 'tg' + from.uid, time: new Date().toISOString(), type: 'chi', amount, category, note,
+    who: from.first_name || 'Telegram', image
+  });
+  const today = tgData().items.filter(i => i.day === dayKey(new Date()) && isChi(i));
+  return '📸 Đã ghi <b>' + vnd(amount) + '</b> — ' + esc(category) + (note ? ' (' + esc(note) + ')' : '') +
+    '\nHôm nay đã chi: <b>' + vnd(sumOf(today)) + '</b>\nSai số? Gõ /undo rồi gửi lại kèm chú thích.';
 }
 
 // "35k" "35 nghìn" "1.500.000" "12tr" "45" (số nhỏ hơn 1000 hiểu là nghìn đồng)
