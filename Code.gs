@@ -235,16 +235,24 @@ function setupTelegram() {
   if (!tgChatIds().length) Logger.log('Chưa có TELEGRAM_CHAT_IDS: nhắn /start cho bot để lấy Chat ID rồi thêm vào Script Properties.');
 }
 
+// Chạy để kiểm tra webhook: xem last_error_message và pending_update_count trong Execution log
+function webhookInfo() {
+  const token = props().getProperty('TELEGRAM_BOT_TOKEN');
+  Logger.log(UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/getWebhookInfo', { muteHttpExceptions: true }).getContentText());
+}
+
 function handleTelegram(e, update) {
   try {
     const secret = props().getProperty('TELEGRAM_SECRET');
     if (!secret || !e.parameter || e.parameter.tg !== secret) return json({ ok: false });
     const msg = update.message;
     if (!msg || !msg.text) return json({ ok: true });
-    // Telegram gửi lại nếu phản hồi chậm — bỏ qua update đã xử lý
+    // Telegram gửi lại nếu phản hồi chậm. Đã xong thì bỏ qua; đang xử lý dở quá 60s (lỗi/treo) thì xử lý lại
     const cache = CacheService.getScriptCache();
-    if (cache.get('tg_' + update.update_id)) return json({ ok: true });
-    cache.put('tg_' + update.update_id, '1', 600);
+    const ukey = 'tg_' + update.update_id;
+    const state = cache.get(ukey);
+    if (state === 'done' || (state && Date.now() - Number(state) < 60000)) return json({ ok: true });
+    cache.put(ukey, String(Date.now()), 600);
 
     const chatId = String(msg.chat.id);
     if (!tgChatIds().includes(chatId)) {
@@ -252,9 +260,10 @@ function handleTelegram(e, update) {
       return json({ ok: true });
     }
     let reply;
-    try { reply = tgReply(msg.text.trim(), msg.from || {}); }
+    try { reply = tgReply(msg.text.trim(), Object.assign({}, msg.from, { uid: update.update_id })); }
     catch (err) { reply = '⚠️ Lỗi: ' + esc(err.message || err); }
     tgSend(chatId, reply);
+    cache.put(ukey, 'done', 600);
   } catch (err) {
     console.error(err);
   }
@@ -294,7 +303,8 @@ function addFromText(text, from) {
   const p = parseExpense(text);
   if (!p.amount) return 'Mình chưa thấy số tiền. Thử: <code>cà phê 35k</code> hoặc <code>ăn trưa 45</code>';
   ACTIONS.add({
-    id: Utilities.getUuid(), time: new Date().toISOString(), type: p.type, amount: p.amount,
+    id: from.uid ? 'tg' + from.uid : Utilities.getUuid(), // id cố định theo update: gửi lại không bị ghi trùng
+    time: new Date().toISOString(), type: p.type, amount: p.amount,
     category: p.category, note: p.note, who: from.first_name || 'Telegram'
   });
   const today = tgData().items.filter(i => i.day === dayKey(new Date()) && isChi(i));
