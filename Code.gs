@@ -212,7 +212,8 @@ function tgChatIds() {
 // Chạy 1 lần: đăng ký webhook và menu lệnh cho bot
 function setupTelegram() {
   const token = props().getProperty('TELEGRAM_BOT_TOKEN');
-  const base = props().getProperty('WEBAPP_URL');
+  // WEBHOOK_URL = địa chỉ worker chuyển tiếp (xem worker.js); không có thì gọi thẳng Web App
+  const base = props().getProperty('WEBHOOK_URL') || props().getProperty('WEBAPP_URL');
   if (!token || !base) throw new Error('Cần đặt TELEGRAM_BOT_TOKEN và WEBAPP_URL trong Script Properties');
   let secret = props().getProperty('TELEGRAM_SECRET');
   if (!secret) {

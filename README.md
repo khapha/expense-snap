@@ -54,4 +54,11 @@ Bot dùng chung Sheet với app: ghi chi tiêu bằng cách nhắn tin, xem th�
 
 Chỉ các Chat ID trong `TELEGRAM_CHAT_IDS` mới dùng được bot; người khác chỉ nhận được ID của họ.
 
+### Bot lúc có lúc không phản hồi (lỗi 302)
+Apps Script trả mã 302 nên Telegram coi là lỗi, gửi lại và trì hoãn tin. Chạy hàm `webhookInfo`: nếu `last_error_message` là `302 Found` thì dùng bộ chuyển tiếp `worker.js` trên Cloudflare Workers (miễn phí):
+1. Đăng ký https://dash.cloudflare.com → **Workers & Pages → Create → Create Worker** → đặt tên (vd `expense-bot`) → **Deploy** → **Edit code** → dán `worker.js` → **Deploy**.
+2. Worker → **Settings → Variables and Secrets** → thêm `APPS_SCRIPT_URL` = URL Web App (`.../exec`).
+3. Copy địa chỉ worker (`https://expense-bot.<tên>.workers.dev`), thêm Script Property `WEBHOOK_URL` = địa chỉ đó.
+4. Dán `Code.gs` mới, deploy New version, chạy lại `setupTelegram`, rồi `webhookInfo` để kiểm tra `url` đã là địa chỉ worker.
+
 Dữ liệu nằm ở tab **GiaoDich** của Sheet "Snap Chi Tieu". Tab `ChiTieu` cũ (nếu có) giữ nguyên, không hiện trong app.
