@@ -108,57 +108,120 @@ const ACTIONS = {
     return {};
   },
 
-  // Đọc hoá đơn bằng Claude: trả về số tiền, danh mục, ghi chú gợi ý
+  // Đọc hoá đơn bằng AI (Gemini miễn phí hoặc Claude): trả về số tiền, danh mục, ghi chú gợi ý
   ocr(d) {
-    const key = props().getProperty('ANTHROPIC_API_KEY');
-    if (!key) throw new Error('Chưa cài ANTHROPIC_API_KEY trong Script Properties');
-    const [header, base64] = d.image.split(',');
-    const mediaType = header.match(/data:(.*?);/)[1];
-    const res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
-      method: 'post',
-      contentType: 'application/json',
-      muteHttpExceptions: true,
-      headers: {
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'server-side-fallback-2026-07-01'
-      },
-      payload: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: 1024,
-        fallbacks: 'default',
-        output_config: {
-          effort: 'low',
-          format: {
-            type: 'json_schema',
-            schema: {
-              type: 'object',
-              properties: {
-                amount: { type: 'integer', description: 'Tổng tiền phải trả, đơn vị đồng; 0 nếu không thấy' },
-                category: { type: 'string', enum: d.categories },
-                note: { type: 'string', description: 'Mô tả ngắn, vd tên quán hoặc món' }
-              },
-              required: ['amount', 'category', 'note'],
-              additionalProperties: false
-            }
-          }
-        },
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-            { type: 'text', text: 'Đây là ảnh một khoản chi tiêu (hoá đơn, bill, hoặc món đồ). Hãy đọc tổng số tiền và chọn danh mục phù hợp nhất.' }
-          ]
-        }]
-      })
-    });
-    const body = JSON.parse(res.getContentText());
-    if (res.getResponseCode() !== 200) throw new Error('Claude API: ' + (body.error && body.error.message));
-    if (body.stop_reason === 'refusal') throw new Error('Claude từ chối xử lý ảnh này');
-    const text = body.content.filter(b => b.type === 'text').map(b => b.text).join('');
-    return { result: JSON.parse(text) };
+    return { result: readReceipt(d.image, d.categories) };
   }
 };
+
+// ===== Đọc hoá đơn bằng AI =====
+// AI_PROVIDER = 'gemini' | 'claude'. Mặc định: gemini nếu có GEMINI_API_KEY, không thì claude.
+function readReceipt(image, categories) {
+  const provider = props().getProperty('AI_PROVIDER') || (props().getProperty('GEMINI_API_KEY') ? 'gemini' : 'claude');
+  const r = provider === 'claude' ? ocrClaude(image, categories) : ocrGemini(image, categories);
+  return {
+    amount: Math.max(0, Math.round(Number(r.amount) || 0)),
+    category: categories.includes(r.category) ? r.category : '📦 Khác',
+    note: String(r.note || '').slice(0, 80)
+  };
+}
+
+const receiptPrompt = categories =>
+  'Đây là ảnh một khoản chi tiêu (hoá đơn, bill, hoặc món đồ). Hãy đọc tổng số tiền phải trả (đơn vị đồng, số nguyên, 0 nếu không thấy) ' +
+  'và chọn danh mục phù hợp nhất trong: ' + categories.join(', ') + '. Ghi chú là mô tả ngắn như tên quán hoặc món. ' +
+  'Chỉ trả về JSON dạng {"amount": 45000, "category": "...", "note": "..."}.';
+
+function ocrGemini(image, categories) {
+  const key = props().getProperty('GEMINI_API_KEY');
+  if (!key) throw new Error('Chưa cài GEMINI_API_KEY trong Script Properties');
+  const model = props().getProperty('GEMINI_MODEL') || 'gemini-2.5-flash-lite';
+  const [header, base64] = image.split(',');
+  const mime = header.match(/data:(.*?);/)[1];
+  const call = generationConfig => UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
+    method: 'post',
+    contentType: 'application/json',
+    muteHttpExceptions: true,
+    headers: { 'x-goog-api-key': key },
+    payload: JSON.stringify({
+      contents: [{ parts: [{ inline_data: { mime_type: mime, data: base64 } }, { text: receiptPrompt(categories) }] }],
+      generationConfig
+    })
+  });
+  const schema = {
+    type: 'OBJECT',
+    properties: { amount: { type: 'INTEGER' }, category: { type: 'STRING', enum: categories }, note: { type: 'STRING' } },
+    required: ['amount', 'category', 'note']
+  };
+  let res = call({ responseMimeType: 'application/json', responseSchema: schema });
+  // API từ chối lược đồ (khác phiên bản) thì thử lại chỉ với yêu cầu JSON trong prompt
+  if (res.getResponseCode() === 400) res = call({ responseMimeType: 'application/json' });
+  const code = res.getResponseCode();
+  const body = JSON.parse(res.getContentText());
+  if (code === 429) throw new Error('Gemini đã hết hạn mức miễn phí, thử lại sau ít phút');
+  if (code !== 200) throw new Error('Gemini API (' + code + '): ' + (body.error && body.error.message));
+  const parts = body.candidates && body.candidates[0] && body.candidates[0].content && body.candidates[0].content.parts;
+  if (!parts) throw new Error('Gemini không trả kết quả' + (body.promptFeedback ? ': ' + body.promptFeedback.blockReason : ''));
+  const text = parts.map(p => p.text || '').join('').replace(/^```(?:json)?|```$/g, '').trim();
+  return JSON.parse(text);
+}
+
+// Chạy để xem tên model hợp lệ cho GEMINI_MODEL (nếu gặp lỗi "model not found")
+function listGeminiModels() {
+  const key = props().getProperty('GEMINI_API_KEY');
+  const res = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100', { headers: { 'x-goog-api-key': key }, muteHttpExceptions: true });
+  const body = JSON.parse(res.getContentText());
+  if (!body.models) return Logger.log(res.getContentText());
+  body.models.filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).forEach(m => Logger.log(m.name.replace('models/', '')));
+}
+
+function ocrClaude(image, categories) {
+  const key = props().getProperty('ANTHROPIC_API_KEY');
+  if (!key) throw new Error('Chưa cài ANTHROPIC_API_KEY trong Script Properties');
+  const [header, base64] = image.split(',');
+  const mediaType = header.match(/data:(.*?);/)[1];
+  const res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+    method: 'post',
+    contentType: 'application/json',
+    muteHttpExceptions: true,
+    headers: {
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'server-side-fallback-2026-07-01'
+    },
+    payload: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 1024,
+      fallbacks: 'default',
+      output_config: {
+        effort: 'low',
+        format: {
+          type: 'json_schema',
+          schema: {
+            type: 'object',
+            properties: {
+              amount: { type: 'integer', description: 'Tổng tiền phải trả, đơn vị đồng; 0 nếu không thấy' },
+              category: { type: 'string', enum: categories },
+              note: { type: 'string', description: 'Mô tả ngắn, vd tên quán hoặc món' }
+            },
+            required: ['amount', 'category', 'note'],
+            additionalProperties: false
+          }
+        }
+      },
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+          { type: 'text', text: 'Đây là ảnh một khoản chi tiêu (hoá đơn, bill, hoặc món đồ). Hãy đọc tổng số tiền và chọn danh mục phù hợp nhất.' }
+        ]
+      }]
+    })
+  });
+  const body = JSON.parse(res.getContentText());
+  if (res.getResponseCode() !== 200) throw new Error('Claude API: ' + (body.error && body.error.message));
+  if (body.stop_reason === 'refusal') throw new Error('Claude từ chối xử lý ảnh này');
+  return JSON.parse(body.content.filter(b => b.type === 'text').map(b => b.text).join(''));
+}
 
 // ===== Tóm tắt cuối ngày (trigger 21h) =====
 function dailySummary() {

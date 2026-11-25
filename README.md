@@ -28,9 +28,16 @@ App: https://khapha.github.io/expense-snap/
 4. Trên app: ⚙️ Cài đặt → nhập tên, mã bí mật, ngân sách.
 
 ### Bật đọc bill bằng AI (tuỳ chọn)
-1. Lấy API key tại https://console.anthropic.com (có tính phí theo lượt dùng).
-2. Apps Script → ⚙️ **Project Settings → Script Properties → Add property**:
-   `ANTHROPIC_API_KEY` = key của bạn.
+**Miễn phí — Gemini:**
+1. Lấy API key tại https://aistudio.google.com (không cần thẻ).
+2. Apps Script → ⚙️ **Project Settings → Script Properties → Add property**: `GEMINI_API_KEY` = key của bạn.
+3. Nếu gặp lỗi "model not found": chạy hàm `listGeminiModels`, chọn một tên trong Execution log và đặt Script Property `GEMINI_MODEL` (mặc định `gemini-2.5-flash-lite`).
+
+> ⚠️ Với gói free, Google có thể dùng nội dung bạn gửi để cải thiện sản phẩm và người thật có thể đọc. Đừng chụp hoá đơn có thông tin nhạy cảm (số thẻ, tên, địa chỉ). Hạn mức free có giới hạn số lượt mỗi ngày/phút; hết thì bot báo "hết hạn mức", thử lại sau.
+
+**Trả phí — Claude (chính xác hơn):** lấy key tại https://console.anthropic.com, thêm `ANTHROPIC_API_KEY`, đặt `AI_PROVIDER` = `claude`.
+
+Không đặt `AI_PROVIDER` thì app tự dùng Gemini nếu có `GEMINI_API_KEY`, không thì dùng Claude.
 
 ### Script Properties khác (tuỳ chọn)
 - `SUMMARY_EMAIL`: email nhận tóm tắt (mặc định là email của bạn)
