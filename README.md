@@ -36,4 +36,22 @@ App: https://khapha.github.io/expense-snap/
 - `SUMMARY_EMAIL`: email nhận tóm tắt (mặc định là email của bạn)
 - `TOKEN`: mã bí mật (do `setup` tạo, có thể đổi)
 
+## Bot Telegram
+
+Bot dùng chung Sheet với app: ghi chi tiêu bằng cách nhắn tin, xem thống kê, và nhận tổng kết lúc 21h mỗi ngày.
+
+**Lệnh:** `/today` `/week` `/month` `/top` `/budget 5tr` `/undo` `/help`. Nhắn thẳng `cà phê 35k`, `ăn trưa 45`, `lương 12tr` để ghi.
+
+**Cài đặt:**
+1. Trên Telegram nhắn **@BotFather** → `/newbot` → đặt tên → copy **bot token**.
+2. Apps Script → **Project Settings → Script Properties**, thêm:
+   - `TELEGRAM_BOT_TOKEN` = token từ BotFather
+   - `WEBAPP_URL` = URL Web App (`.../exec`)
+3. Project Settings → **Time zone** chọn `(GMT+07:00) Asia/Ho_Chi_Minh` (để "hôm nay" tính đúng giờ Việt Nam).
+4. Dán `Code.gs` mới, **Deploy → Manage deployments → ✏️ → New version → Deploy**.
+5. Chọn hàm **`setupTelegram`** → **Run** (đăng ký webhook). Xem Execution log phải có `"ok":true`.
+6. Nhắn `/start` cho bot. Bot trả về **Chat ID** của bạn — thêm Script Property `TELEGRAM_CHAT_IDS` = ID đó (nhiều người thì ngăn cách bằng dấu phẩy). Nhắn `/help` lại để dùng.
+
+Chỉ các Chat ID trong `TELEGRAM_CHAT_IDS` mới dùng được bot; người khác chỉ nhận được ID của họ.
+
 Dữ liệu nằm ở tab **GiaoDich** của Sheet "Snap Chi Tieu". Tab `ChiTieu` cũ (nếu có) giữ nguyên, không hiện trong app.
