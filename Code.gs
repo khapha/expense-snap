@@ -284,7 +284,9 @@ const TG_KEYWORDS = {
   '🎁 Thưởng': ['thưởng']
 };
 const TG_HELP = '<b>💸 Bot chi tiêu</b>\n' +
-  'Gõ thẳng để ghi: <code>cà phê 35k</code>, <code>ăn trưa 45</code>, <code>lương 12tr</code>\n\n' +
+  'Gõ thẳng để ghi: <code>cà phê 35k</code>, <code>ăn trưa 45</code>, <code>lương 12tr</code>\n' +
+  'Gõ không dấu cũng được: <code>tien dien 650k</code>\n' +
+  'Nhiều khoản một tin: <code>cà phê 35k, gửi xe 5k</code> (hoặc mỗi khoản một dòng)\n\n' +
   '/today — hôm nay\n/week — 7 ngày qua\n/month — tháng này\n/top — 5 khoản chi lớn nhất tháng\n' +
   '/budget 5tr — đặt ngân sách tháng\n/undo — xoá khoản vừa ghi\n\n' +
   '📸 Gửi ảnh hoá đơn (có thể kèm chú thích như <code>45k</code>) để bot tự đọc và ghi.';
@@ -394,17 +396,35 @@ function tgReply(text, from) {
   }
 }
 
+// Tách tin có nhiều khoản: "cà phê 35k, gửi xe 5k" hoặc mỗi khoản một dòng.
+// Chỉ tách khi MỌI đoạn đều có số tiền, để không cắt nhầm câu như "ăn và uống 50k".
+function splitItems(text) {
+  const parts = text.split(/\n|;|,\s+|,(?=\D)|\s+và\s+|\s+\+\s+/i).map(s => s.trim()).filter(Boolean);
+  if (parts.length < 2 || parts.length > 10) return [text];
+  return parts.every(s => parseExpense(s).amount > 0) ? parts : [text];
+}
+
 function addFromText(text, from) {
-  const p = parseExpense(text);
-  if (!p.amount) return 'Mình chưa thấy số tiền. Thử: <code>cà phê 35k</code> hoặc <code>ăn trưa 45</code>';
-  ACTIONS.add({
-    id: from.uid ? 'tg' + from.uid : Utilities.getUuid(), // id cố định theo update: gửi lại không bị ghi trùng
-    time: new Date().toISOString(), type: p.type, amount: p.amount,
-    category: p.category, note: p.note, who: from.first_name || 'Telegram'
+  const parts = splitItems(text);
+  const who = from.first_name || 'Telegram';
+  const added = [];
+  parts.forEach((s, i) => {
+    const p = parseExpense(s);
+    if (!p.amount) return;
+    ACTIONS.add({
+      // id cố định theo update: gửi lại không bị ghi trùng
+      id: from.uid ? 'tg' + from.uid + (parts.length > 1 ? '-' + i : '') : Utilities.getUuid(),
+      time: new Date().toISOString(), type: p.type, amount: p.amount,
+      category: p.category, note: p.note, who
+    });
+    added.push(p);
   });
+  if (!added.length) return 'Mình chưa thấy số tiền. Thử: <code>cà phê 35k</code> hoặc <code>ăn trưa 45</code>';
   const today = tgData().items.filter(i => i.day === dayKey(new Date()) && isChi(i));
-  return (p.type === 'thu' ? '💰 Đã ghi thu ' : '✅ Đã ghi ') + '<b>' + vnd(p.amount) + '</b> — ' + esc(p.category) + (p.note ? ' (' + esc(p.note) + ')' : '') +
-    '\nHôm nay đã chi: <b>' + vnd(sumOf(today)) + '</b>';
+  const line = p => (p.type === 'thu' ? '+ ' : '• ') + '<b>' + vnd(p.amount) + '</b> — ' + esc(p.category) + (p.note ? ' (' + esc(p.note) + ')' : '');
+  const head = added.length > 1 ? '✅ Đã ghi <b>' + added.length + ' khoản</b>:\n' + added.map(line).join('\n')
+    : (added[0].type === 'thu' ? '💰 Đã ghi thu ' : '✅ Đã ghi ') + '<b>' + vnd(added[0].amount) + '</b> — ' + esc(added[0].category) + (added[0].note ? ' (' + esc(added[0].note) + ')' : '');
+  return head + '\nHôm nay đã chi: <b>' + vnd(sumOf(today)) + '</b>' + (added.length > 1 ? '\n/undo xoá khoản cuối.' : '');
 }
 
 // Ảnh hoá đơn: Claude đọc số tiền/danh mục/ghi chú, chú thích của người gửi (nếu có) được ưu tiên
@@ -439,14 +459,18 @@ function addFromPhoto(msg, from) {
 
 // "35k" "35 nghìn" "1.500.000" "12tr" "45" (số nhỏ hơn 1000 hiểu là nghìn đồng)
 function parseAmount(t) {
-  let m = t.match(/\d{1,3}(?:[.,]\d{3})+(?!\d)(?:\s*(?:đồng|đ))?/);
+  let m = t.match(/\d{1,3}(?:[.,]\d{3})+(?!\d)(?:\s*(?:đồng|dong|đ))?/);
   if (m) return { amount: +m[0].replace(/\D/g, ''), raw: m[0] };
-  m = t.match(/(\d+(?:[.,]\d+)?)\s*(triệu|tr|nghìn|ngàn|ngh|k|đồng|đ)?(?![\p{L}])/u);
+  m = t.match(/(\d+(?:[.,]\d+)?)\s*(triệu|trieu|tr|nghìn|nghin|ngàn|ngan|ngh|k|đồng|dong|đ)?(?![\p{L}])/u);
   if (!m) return { amount: 0, raw: '' };
   const n = parseFloat(m[1].replace(',', '.')), u = m[2] || '';
-  const amount = /^(triệu|tr)$/.test(u) ? n * 1e6 : /^(nghìn|ngàn|ngh|k)$/.test(u) ? n * 1e3 : (n < 1000 ? n * 1e3 : n);
+  const amount = /^(triệu|trieu|tr)$/.test(u) ? n * 1e6 : /^(nghìn|nghin|ngàn|ngan|ngh|k)$/.test(u) ? n * 1e3 : (n < 1000 ? n * 1e3 : n);
   return { amount: Math.round(amount), raw: m[0] };
 }
+
+const stripAccents = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
+// Từ khóa khi bỏ dấu trùng với từ thông dụng khác nên không dùng cho tin không dấu
+const PLAIN_AMBIGUOUS = ['cho', 'tra', 'qua', 'mang', 'sua', 'ca', 'son', 'but', 'hong', 've', 'tang', 'vay'];
 
 function parseExpense(text) {
   const t = text.toLowerCase();
@@ -458,6 +482,16 @@ function parseExpense(text) {
   for (const c of Object.keys(TG_KEYWORDS)) {
     for (const w of TG_KEYWORDS[c]) {
       if (w.length > best && padded.includes(' ' + w + ' ')) { category = c; best = w.length; }
+    }
+  }
+  // Tin gõ không dấu ("tien dien 650k", "an trua 45"): so khớp lại với từ khóa đã bỏ dấu.
+  // Chỉ chạy khi cả tin không có dấu, và bỏ qua từ dễ nhầm với từ khác ("cho", "trả", "qua"...).
+  if (stripAccents(t) === t) {
+    for (const c of Object.keys(TG_KEYWORDS)) {
+      for (const w of TG_KEYWORDS[c]) {
+        const nw = stripAccents(w);
+        if (nw.length > best && !PLAIN_AMBIGUOUS.includes(nw) && padded.includes(' ' + nw + ' ')) { category = c; best = nw.length; }
+      }
     }
   }
   const idx = raw ? t.indexOf(raw) : -1;
