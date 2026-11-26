@@ -286,9 +286,11 @@ const TG_KEYWORDS = {
 const TG_HELP = '<b>💸 Bot chi tiêu</b>\n' +
   'Gõ thẳng để ghi: <code>cà phê 35k</code>, <code>ăn trưa 45</code>, <code>lương 12tr</code>\n' +
   'Gõ không dấu cũng được: <code>tien dien 650k</code>\n' +
-  'Nhiều khoản một tin: <code>cà phê 35k, gửi xe 5k</code> (hoặc mỗi khoản một dòng)\n\n' +
+  'Nhiều khoản một tin: <code>cà phê 35k, gửi xe 5k</code> (hoặc mỗi khoản một dòng)\n' +
+  'Ghi bù: <code>hôm qua ăn tối 120k</code>, <code>thứ 6 grab 80k</code>, <code>ngày 12/11 điện 650k</code>, <code>2 ngày trước cơm 45k</code>\n\n' +
   '/today — hôm nay\n/week — 7 ngày qua\n/month — tháng này\n/top — 5 khoản chi lớn nhất tháng\n' +
-  '/budget 5tr — đặt ngân sách tháng\n/undo — xoá khoản vừa ghi\n\n' +
+  '/budget 5tr — đặt ngân sách tháng (bot cảnh báo khi dùng 80% và khi vượt)\n/undo — xoá khoản vừa ghi\n' +
+  '/sua 50k — sửa số tiền khoản vừa ghi; <code>/sua điện</code> — đổi danh mục; <code>/sua ghi chú abc</code> — đổi ghi chú\n\n' +
   '📸 Gửi ảnh hoá đơn (có thể kèm chú thích như <code>45k</code>) để bot tự đọc và ghi.';
 
 const vnd = n => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ';
@@ -325,6 +327,7 @@ function setupTelegram() {
     { command: 'top', description: '5 khoản chi lớn nhất tháng' },
     { command: 'budget', description: 'Đặt/xem ngân sách tháng' },
     { command: 'undo', description: 'Xoá khoản vừa ghi' },
+    { command: 'sua', description: 'Sửa khoản vừa ghi (số tiền/danh mục/ghi chú)' },
     { command: 'help', description: 'Hướng dẫn' }
   ] }));
   if (!tgChatIds().length) Logger.log('Chưa có TELEGRAM_CHAT_IDS: nhắn /start cho bot để lấy Chat ID rồi thêm vào Script Properties.');
@@ -392,6 +395,7 @@ function tgReply(text, from) {
       ACTIONS.delete({ id: last.id });
       return '↩️ Đã xoá: ' + vnd(last.amount) + ' — ' + esc(last.category) + (last.note ? ' (' + esc(last.note) + ')' : '');
     }
+    case '/sua': return editLast(arg);
     default: return 'Lệnh không có. Gõ /help để xem hướng dẫn.';
   }
 }
@@ -401,30 +405,58 @@ function tgReply(text, from) {
 function splitItems(text) {
   const parts = text.split(/\n|;|,\s+|,(?=\D)|\s+và\s+|\s+\+\s+/i).map(s => s.trim()).filter(Boolean);
   if (parts.length < 2 || parts.length > 10) return [text];
-  return parts.every(s => parseExpense(s).amount > 0) ? parts : [text];
+  return parts.every(s => parseEntry(s).amount > 0) ? parts : [text];
 }
 
 function addFromText(text, from) {
   const parts = splitItems(text);
   const who = from.first_name || 'Telegram';
   const added = [];
+  let carry = null; // đoạn không ghi ngày thì lấy ngày của đoạn trước đó có ghi ngày
   parts.forEach((s, i) => {
-    const p = parseExpense(s);
+    const p = parseEntry(s);
+    if (p.when) carry = p.when; else p.when = carry;
     if (!p.amount) return;
     ACTIONS.add({
       // id cố định theo update: gửi lại không bị ghi trùng
       id: from.uid ? 'tg' + from.uid + (parts.length > 1 ? '-' + i : '') : Utilities.getUuid(),
-      time: new Date().toISOString(), type: p.type, amount: p.amount,
+      time: (p.when || new Date()).toISOString(), type: p.type, amount: p.amount,
       category: p.category, note: p.note, who
     });
     added.push(p);
   });
   if (!added.length) return 'Mình chưa thấy số tiền. Thử: <code>cà phê 35k</code> hoặc <code>ăn trưa 45</code>';
-  const today = tgData().items.filter(i => i.day === dayKey(new Date()) && isChi(i));
-  const line = p => (p.type === 'thu' ? '+ ' : '• ') + '<b>' + vnd(p.amount) + '</b> — ' + esc(p.category) + (p.note ? ' (' + esc(p.note) + ')' : '');
+  const d = tgData();
+  const today = d.items.filter(i => i.day === dayKey(new Date()) && isChi(i));
+  const line = p => (p.type === 'thu' ? '+ ' : '• ') + '<b>' + vnd(p.amount) + '</b> — ' + esc(p.category) + (p.note ? ' (' + esc(p.note) + ')' : '') + dateTag(p.when);
   const head = added.length > 1 ? '✅ Đã ghi <b>' + added.length + ' khoản</b>:\n' + added.map(line).join('\n')
-    : (added[0].type === 'thu' ? '💰 Đã ghi thu ' : '✅ Đã ghi ') + '<b>' + vnd(added[0].amount) + '</b> — ' + esc(added[0].category) + (added[0].note ? ' (' + esc(added[0].note) + ')' : '');
-  return head + '\nHôm nay đã chi: <b>' + vnd(sumOf(today)) + '</b>' + (added.length > 1 ? '\n/undo xoá khoản cuối.' : '');
+    : (added[0].type === 'thu' ? '💰 Đã ghi thu ' : '✅ Đã ghi ') + '<b>' + vnd(added[0].amount) + '</b> — ' + esc(added[0].category) + (added[0].note ? ' (' + esc(added[0].note) + ')' : '') + dateTag(added[0].when);
+  return head + '\nHôm nay đã chi: <b>' + vnd(sumOf(today)) + '</b>' + budgetAlert(d, sumOf(added.filter(p => p.type === 'chi' && monthKey(p.when || new Date()) === monthKey(new Date())))) +
+    (added.length > 1 ? '\n/undo xoá khoản cuối.' : '');
+}
+
+// Cảnh báo ngân sách tháng ngay khi ghi: lúc chạm 80%, lúc vượt, và khi đang vượt.
+// addedChi = tổng chi vừa ghi thuộc tháng này (d đã gồm các khoản đó).
+function budgetAlert(d, addedChi) {
+  const budget = d.budget;
+  if (!budget || !(addedChi > 0)) return '';
+  const mk = monthKey(new Date());
+  const total = sumOf(d.items.filter(i => i.month === mk && isChi(i)));
+  const before = total - addedChi;
+  if (total > budget) {
+    return before > budget ? '\n🚨 Đang vượt ngân sách <b>' + vnd(total - budget) + '</b> (' + vnd(total) + '/' + vnd(budget) + ')'
+      : '\n🚨 <b>Vừa vượt ngân sách tháng!</b> ' + vnd(total) + '/' + vnd(budget);
+  }
+  if (total >= budget * 0.8 && before < budget * 0.8) {
+    return '\n⚠️ Đã dùng <b>' + Math.round(total / budget * 100) + '%</b> ngân sách tháng (' + vnd(total) + '/' + vnd(budget) + '), còn ' + vnd(budget - total);
+  }
+  return '';
+}
+
+// Hiện ngày khi khoản không phải của hôm nay
+function dateTag(when) {
+  if (!when || dayKey(when) === dayKey(new Date())) return '';
+  return ' 📅 ' + Utilities.formatDate(when, Session.getScriptTimeZone(), 'dd/MM');
 }
 
 // Ảnh hoá đơn: Claude đọc số tiền/danh mục/ghi chú, chú thích của người gửi (nếu có) được ưu tiên
@@ -452,9 +484,10 @@ function addFromPhoto(msg, from) {
     who: from.first_name || 'Telegram', image
   });
   lap('saved');
-  const today = tgData().items.filter(i => i.day === dayKey(new Date()) && isChi(i));
+  const d = tgData();
+  const today = d.items.filter(i => i.day === dayKey(new Date()) && isChi(i));
   return '📸 Đã ghi <b>' + vnd(amount) + '</b> — ' + esc(category) + (note ? ' (' + esc(note) + ')' : '') +
-    '\nHôm nay đã chi: <b>' + vnd(sumOf(today)) + '</b>\nSai số? Gõ /undo rồi gửi lại kèm chú thích.';
+    '\nHôm nay đã chi: <b>' + vnd(sumOf(today)) + '</b>' + budgetAlert(d, amount) + '\nSai số? Gõ /undo hoặc /sua 45k.';
 }
 
 // "35k" "35 nghìn" "1.500.000" "12tr" "45" (số nhỏ hơn 1000 hiểu là nghìn đồng)
@@ -466,6 +499,90 @@ function parseAmount(t) {
   const n = parseFloat(m[1].replace(',', '.')), u = m[2] || '';
   const amount = /^(triệu|trieu|tr)$/.test(u) ? n * 1e6 : /^(nghìn|nghin|ngàn|ngan|ngh|k)$/.test(u) ? n * 1e3 : (n < 1000 ? n * 1e3 : n);
   return { amount: Math.round(amount), raw: m[0] };
+}
+
+// Tách cụm ngày ra khỏi tin để ghi bù: "hôm qua", "hôm kia", "2 ngày trước", "thứ 6", "chủ nhật",
+// "ngày 12", "12/11", "12/11/2026" (có dấu hoặc không dấu). Trả về { when: Date|null, rest }.
+// Cụm ngày được bỏ khỏi chuỗi trước khi tách số tiền, để "12/11" không bị hiểu là tiền.
+function extractDate(text) {
+  let t = ' ' + text + ' ', when = null;
+  const now = new Date();
+  const shift = n => { const d = new Date(now); d.setDate(d.getDate() + n); return d; };
+  const noon = (y, m, d) => { const x = new Date(y, m, d, 12, 0, 0); return x.getFullYear() === y && x.getMonth() === m && x.getDate() === d ? x : null; };
+  // Số theo sau là đơn vị tiền ("thu 2 triệu") thì không phải thứ trong tuần
+  const notMoney = '(?!\\s*(?:triệu|trieu|tr|nghìn|nghin|ngàn|ngan|ngh|k|đồng|dong|đ)(?![\\p{L}]))';
+  const rules = [
+    [/(?<=\s)(?:hôm|hom|bữa|bua)\s+kia(?=\s|$)/iu, () => shift(-2)],
+    [/(?<=\s)(?:hôm|hom|bữa|bua|tối|toi|sáng|sang|chiều|chieu|trưa|trua)\s+qua(?=\s|$)/iu, () => shift(-1)],
+    [/(?<=\s)(?:hôm|hom|bữa|bua)\s+nay(?=\s|$)/iu, () => new Date(now)],
+    [/(?<=\s)(\d{1,2})\s*(?:ngày|ngay)\s+(?:trước|truoc)(?=\s|$)/iu, m => +m[1] >= 1 && +m[1] <= 60 ? shift(-m[1]) : null],
+    [new RegExp('(?<=\\s)(?:thứ|thu)\\s*([2-7])(?![\\d\\p{L}.,])' + notMoney, 'iu'), m => shift(-((now.getDay() - (+m[1] - 1) + 7) % 7))],
+    [/(?<=\s)(?:chủ nhật|chu nhat|cn)(?=\s|$)/iu, () => shift(-now.getDay())],
+    [/(?<=\s)(?:(?:ngày|ngay)\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?![\d\/])(?!\s*(?:kg|g|lạng|lang|lít|lit|ml|cái|cai|ly|chai|hộp|hop|quả|qua|trái|trai|con|cân|can)(?![\p{L}]))/iu, m => {
+      const dd = +m[1], mm = +m[2] - 1;
+      let y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : now.getFullYear();
+      let d = noon(y, mm, dd);
+      if (d && !m[3] && d > now) d = noon(y - 1, mm, dd); // chưa có năm mà ngày còn ở tương lai thì là năm trước
+      return d && d <= now ? d : null;
+    }],
+    [/(?<=\s)(?:ngày|ngay)\s+(\d{1,2})(?![\d\/.,\p{L}])/iu, m => {
+      const dd = +m[1];
+      let d = noon(now.getFullYear(), now.getMonth(), dd);
+      if (!d || d > now) d = noon(now.getFullYear(), now.getMonth() - 1, dd); // chưa tới ngày đó thì là tháng trước
+      return d && d <= now ? d : null;
+    }]
+  ];
+  for (const [re, fn] of rules) {
+    if (when) break;
+    const m = t.match(re);
+    if (!m) continue;
+    const d = fn(m);
+    if (d) { when = d; t = t.replace(m[0], ' '); }
+  }
+  return { when, rest: t.replace(/\s+/g, ' ').trim() };
+}
+
+// parseExpense + ngày ghi bù (when = null nghĩa là hôm nay)
+function parseEntry(text) {
+  const dt = extractDate(text);
+  const p = parseExpense(dt.rest);
+  p.when = dt.when;
+  return p;
+}
+
+const categoryName = c => c.replace(/^\S+\s+/, '');
+function findCategoryByName(lower, type) {
+  const target = stripAccents(lower.trim());
+  const order = type === 'thu' ? TG_CATS.thu.concat(TG_CATS.chi) : TG_CATS.chi.concat(TG_CATS.thu);
+  return order.find(c => stripAccents(categoryName(c).toLowerCase()) === target) || null;
+}
+
+// /sua: sửa khoản vừa ghi. "/sua 50k" (tiền), "/sua điện" (danh mục), "/sua 50k điện" (cả hai), "/sua ghi chú abc"
+function editLast(arg) {
+  arg = (arg || '').trim();
+  if (!arg) return 'Cách dùng: <code>/sua 50k</code> (đổi số tiền), <code>/sua điện</code> (đổi danh mục), <code>/sua ghi chú abc</code> (đổi ghi chú).';
+  const last = tgData().items[0];
+  if (!last) return 'Không có khoản nào để sửa.';
+  const patch = { id: last.id };
+  const mNote = arg.match(/^(?:ghi chú|ghi chu|gc|note)\s+(.+)$/i);
+  if (mNote) {
+    patch.note = mNote[1].trim();
+  } else {
+    const lower = arg.toLowerCase().replace(/^(?:danh mục|danh muc|dm|loại|loai)\s+/, '');
+    const p = parseExpense(lower);
+    if (p.amount > 0) patch.amount = p.amount;
+    const cat = findCategoryByName(lower, last.type) || (p.category !== '📦 Khác' ? p.category : null);
+    if (cat) {
+      patch.category = cat;
+      if (cat !== '📦 Khác') patch.type = TG_CATS.thu.includes(cat) ? 'thu' : 'chi';
+    }
+  }
+  if (patch.amount == null && patch.category == null && patch.note == null) {
+    return 'Mình chưa hiểu cần sửa gì. Thử: <code>/sua 50k</code>, <code>/sua điện</code> hoặc <code>/sua ghi chú abc</code>.';
+  }
+  ACTIONS.update(patch);
+  const desc = i => '<b>' + vnd(i.amount) + '</b> — ' + esc(i.category) + (i.note ? ' (' + esc(i.note) + ')' : '');
+  return '✏️ Đã sửa khoản vừa ghi:\n<s>' + desc(last) + '</s>\n→ ' + desc(Object.assign({}, last, patch));
 }
 
 const stripAccents = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
