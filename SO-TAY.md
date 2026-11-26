@@ -73,7 +73,7 @@ Viết lại backend theo kiểu `action` (`add`, `list`, `update`, `delete`, `s
 | `ANTHROPIC_API_KEY`, `AI_PROVIDER` | tuỳ chọn, dùng Claude (trả phí) |
 | `SUMMARY_EMAIL` | email nhận tóm tắt (mặc định là email chủ script) |
 
-**Cloudflare Worker → Variables**: `APPS_SCRIPT_URL` = URL Web App của deployment đang chạy code mới.
+**Cloudflare Worker → Variables**: `APPS_SCRIPT_URL` = URL Web App của deployment đang chạy code mới; `TELEGRAM_SECRET` = cùng giá trị Script Property `TELEGRAM_SECRET` (worker trả 403 nếu `?tg=` sai); tuỳ chọn `TELEGRAM_BOT_TOKEN` (Secret) + `TELEGRAM_CHAT_IDS` để worker nhắn báo khi chuyển tiếp thất bại. Đổi `TELEGRAM_SECRET` ở Google thì phải đổi cả ở đây rồi chạy lại `setupTelegram`.
 
 **Hàm chạy tay trong Apps Script**: `setup` (tạo token + trigger 21h), `setupTelegram` (đăng ký webhook + menu lệnh), `webhookInfo` (chẩn đoán webhook), `listGeminiModels` (liệt kê model hợp lệ).
 
@@ -90,6 +90,7 @@ Viết lại backend theo kiểu `action` (`add`, `list`, `update`, `delete`, `s
 | `getSheetByName` of null | script không gắn Sheet | đã xử lý bằng `getSpreadsheet()` |
 | Bot im lặng, `last_error_message` = 302 | Apps Script trả 302 | dùng Cloudflare Worker |
 | Bot im lặng sau khi sửa code | worker trỏ deployment cũ | đổi `APPS_SCRIPT_URL`, hoặc New version đúng deployment |
+| Bot im lặng, `webhookInfo` báo 403 | `TELEGRAM_SECRET` ở worker khác Script Property | sửa cho khớp rồi chạy lại `setupTelegram` |
 | `Bad webhook: Failed to resolve host` | DNS `workers.dev` chưa lan | đợi 5–10 phút, chạy lại `setupTelegram` |
 | Sheet có dòng 1970, số tiền 0 | tin Telegram vào bản cũ/endpoint không token | xoá dòng, trỏ đúng deployment |
 | Gemini 404 model | model bị ngừng cho tài khoản mới | đặt `GEMINI_MODEL`, chạy `listGeminiModels` |

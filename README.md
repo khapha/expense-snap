@@ -68,6 +68,7 @@ Gửi ảnh bill (có thể kèm chú thích như `45k` hoặc `cà phê`) → C
 Apps Script trả mã 302 nên Telegram coi là lỗi, gửi lại và trì hoãn tin. Chạy hàm `webhookInfo`: nếu `last_error_message` là `302 Found` thì dùng bộ chuyển tiếp `worker.js` trên Cloudflare Workers (miễn phí):
 1. Đăng ký https://dash.cloudflare.com → **Workers & Pages → Create → Create Worker** → đặt tên (vd `expense-bot`) → **Deploy** → **Edit code** → dán `worker.js` → **Deploy**.
 2. Worker → **Settings → Variables and Secrets** → thêm `APPS_SCRIPT_URL` = URL Web App (`.../exec`).
+   Nên thêm: `TELEGRAM_SECRET` = giá trị Script Property `TELEGRAM_SECRET` (worker sẽ từ chối yêu cầu không có đúng khoá `?tg=`). Tuỳ chọn để bot báo khi lỗi: `TELEGRAM_BOT_TOKEN` (loại **Secret**) và `TELEGRAM_CHAT_IDS` (danh sách Chat ID, ngăn cách bằng dấu phẩy). Có đủ hai biến này thì khi Apps Script lỗi, bot nhắn "chưa xử lý được, gửi lại nhé" thay vì im lặng. Worker tự thử lại tối đa 3 lần với lỗi tạm thời.
 3. Copy địa chỉ worker (`https://expense-bot.<tên>.workers.dev`), thêm Script Property `WEBHOOK_URL` = địa chỉ đó.
 4. Dán `Code.gs` mới, deploy New version, chạy lại `setupTelegram`, rồi `webhookInfo` để kiểm tra `url` đã là địa chỉ worker.
 
